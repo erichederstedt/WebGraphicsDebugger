@@ -1,5 +1,5 @@
-import { uiPanel, update } from "./ui";
-import { processCommands } from "./ui_backend_canvas";
+import { uiPanel, update } from "./ui.js";
+import { processCommands } from "./ui_backend_canvas.js";
 
 var prevTime: DOMHighResTimeStamp = 0.0;
 function draw(time: DOMHighResTimeStamp) {

@@ -1,7 +1,7 @@
 /**
  * ui_backend_canvas.ts - Canvas backend for the UI module
 */
-import { Command } from "./ui";
+import { Command } from "./ui.js";
 
 const canvas: HTMLCanvasElement = document.getElementById("surface") as HTMLCanvasElement;
 const ctx: CanvasRenderingContext2D = canvas.getContext("2d");
