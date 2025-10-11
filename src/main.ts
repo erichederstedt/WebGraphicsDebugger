@@ -1,5 +1,5 @@
 import { uiPanel, update } from "./ui.js";
-import { processCommands } from "./ui_backend_canvas.js";
+import { getKeyInputState, getMouseInputState, processCommands } from "./ui_backend_canvas.js";
 
 var prevTime: DOMHighResTimeStamp = 0.0;
 function draw(time: DOMHighResTimeStamp) {
@@ -10,7 +10,7 @@ function draw(time: DOMHighResTimeStamp) {
     // ctx.fillStyle = "skyblue";
     // ctx.fillRect(0, 0, 100, 300);
 
-    update(processCommands);
+    update(processCommands, getKeyInputState, getMouseInputState);
     requestAnimationFrame(draw);
     prevTime = time;
 }
