@@ -1,5 +1,5 @@
-import { layoutSetColumns, uiBox, uiImage, uiPanelBegin, uiPanelEnd, uiStyle, update } from "./ui.js";
-import { getKeyInputState, getMouseInputState, processCommands } from "./ui_backend_canvas.js";
+import { layoutSetColumns, uiBox, uiImage, uiInit, uiPanelBegin, uiPanelEnd, uiStyle, uiText, uiUpdate } from "./ui.js";
+import { getKeyInputState, getMouseInputState, getTextHeight, getTextWidth, processCommands } from "./ui_backend_canvas.js";
 
 async function loadImageBitmap(url: string): Promise<ImageBitmap> {
     const response = await fetch(url);
@@ -26,6 +26,8 @@ function draw(time: DOMHighResTimeStamp) {
         uiStyle(0.0, 0.0, 1.0);
         uiBox(64, 64);
         uiImage(64, 64, bitmap);
+        uiText("Hello, world!");
+        uiStyle(0.0, 1.0, 0.0);
         uiBox(64, 64);
     }
     uiPanelEnd();
@@ -33,12 +35,13 @@ function draw(time: DOMHighResTimeStamp) {
     // ctx.fillStyle = "skyblue";
     // ctx.fillRect(0, 0, 100, 300);
 
-    update(processCommands, getKeyInputState, getMouseInputState);
+    uiUpdate(processCommands, getKeyInputState, getMouseInputState);
     requestAnimationFrame(draw);
     prevTime = time;
 }
 
 function main() {
+    uiInit(getTextWidth, getTextHeight);
     console.log("fuck");
 
     draw(0.0);

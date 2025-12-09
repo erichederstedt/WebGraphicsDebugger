@@ -36,6 +36,14 @@ export function processCommands(drawCommands: ReadonlyArray<Command>) {
     }
 }
 
+export function getTextWidth(text: string): number {
+    return ctx.measureText(text).width;
+}
+export function getTextHeight(text: string): number {
+    const metrics = ctx.measureText(text);
+    return metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+}
+
 var keyInputState: Array<boolean> = new Array(256).fill(false);
 window.addEventListener("keydown", (e) => {
     if (e.key.length === 1) {

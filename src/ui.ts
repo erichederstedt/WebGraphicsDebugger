@@ -46,6 +46,7 @@ type Layout = {
     columns: number;
     columnCount: number;
     cursorWidth: number;
+    largestHeight: number;
     // origin: LayoutOrgin;
 }
 const layoutStack: Array<Layout> = [];
@@ -58,8 +59,12 @@ function layoutPush(x: number, y: number, width: number, height: number, relativ
         y += layout.cursorHeight;
         x += layout.cursorWidth;
 
+        if (height > layout.largestHeight) {
+            layout.largestHeight = height;
+        }
+
         if ((layout.columnCount + 1) >= layout.columns) {
-            layout.cursorHeight += height;
+            layout.cursorHeight += layout.largestHeight;
             layout.cursorWidth = 0;
             layout.columnCount = 0;
         }
@@ -76,7 +81,8 @@ function layoutPush(x: number, y: number, width: number, height: number, relativ
         cursorHeight: 0,
         columns: 1,
         columnCount: 0,
-        cursorWidth: 0
+        cursorWidth: 0,
+        largestHeight: 0,
     });
 
     // TODO: Handle marking of parent layout as needing a scroll bar if current layout exceeds size of parent layout.
@@ -134,6 +140,18 @@ export function uiImage(width: number, height: number, image: Texture) {
         type: "texture",
         texture: null
     });
+}
+export function uiText(text: string) {
+    const width = getTextWidth(text);
+    const height = getTextHeight(text);
+    const layout = layoutPush(0, height, width, height);
+    drawCommands.push({
+        type: "text",
+        x: layout.x,
+        y: layout.y,
+        text: text,
+    });
+    layoutPop();
 }
 export function uiStyle(r: number, g: number, b: number) {
     drawCommands.push({
@@ -201,12 +219,26 @@ function advanceMouseInputState(newInputState: MouseState) {
     }
 }
 
+var _getTextWidth: (text: string) => number = null;
+function getTextWidth(text: string): number {
+    return _getTextWidth ? _getTextWidth(text) : 0;
+}
+var _getTextHeight: (text: string) => number = null;
+function getTextHeight(text: string): number {
+    return _getTextHeight ? _getTextHeight(text) : 0;
+}
+
+export function uiInit(getTextWidthImpl: (text: string) => number, getTextHeightImpl: (text: string) => number) {
+    _getTextWidth = getTextWidthImpl;
+    _getTextHeight = getTextHeightImpl;
+}
+
 /**
  * 
  * @param processor Function that processes the draw commands
  * @param keyInputHandler Function that updates the input state(has to be of length 256)
  */
-export function update(processor: (commands: ReadonlyArray<Command>) => void, keyInputHandler: () => Array<boolean>, mouseInputHandler: () => MouseState) {
+export function uiUpdate(processor: (commands: ReadonlyArray<Command>) => void, keyInputHandler: () => Array<boolean>, mouseInputHandler: () => MouseState) {
     advanceInputState(keyInputHandler());
     advanceMouseInputState(mouseInputHandler());
     processor(drawCommands);
