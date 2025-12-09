@@ -9,6 +9,7 @@ const ctx: CanvasRenderingContext2D = canvas.getContext("2d");
 export function processCommands(drawCommands: ReadonlyArray<Command>) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    var texture: CanvasImageSource = null;
     for (let i = 0; i < drawCommands.length; i++) {
         const command = drawCommands[i];
 
@@ -18,11 +19,18 @@ export function processCommands(drawCommands: ReadonlyArray<Command>) {
                 break;
 
             case "quad":
-                ctx.fillRect(command.x, command.y, command.width, command.height);
+                if (texture)
+                    ctx.drawImage(texture, command.x, command.y, command.width, command.height);
+                else
+                    ctx.fillRect(command.x, command.y, command.width, command.height);
                 break;
 
             case "text":
                 ctx.fillText(command.text, command.x, command.y);
+                break;
+
+            case "texture":
+                texture = command.texture;
                 break;
         }
     }
@@ -77,3 +85,14 @@ export function getMouseInputState(): MouseState {
     hasUpdatedWheelDeltaThisFrame = false;
     return mouseInputState;
 }
+
+function resizeCanvas() {
+    const ratio = window.devicePixelRatio || 1;
+
+    canvas.width = canvas.clientWidth * ratio;
+    canvas.height = canvas.clientHeight * ratio;
+
+    ctx.scale(ratio, ratio);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
