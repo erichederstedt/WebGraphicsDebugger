@@ -4,26 +4,26 @@
 
 type Texture = any;
 
-type QuadCommand = {
+export type QuadCommand = {
     type: "quad";
     x: number;
     y: number;
     width: number;
     height: number;
 }
-type StyleCommand = {
+export type StyleCommand = {
     type: "style";
     r: number;
     g: number;
     b: number;
 }
-type TextCommand = {
+export type TextCommand = {
     type: "text";
     x: number;
     y: number;
     text: string;
 }
-type TextureCommand = {
+export type TextureCommand = {
     type: "texture";
     texture: Texture;
 }
