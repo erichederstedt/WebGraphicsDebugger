@@ -1,4 +1,4 @@
-import { layoutSetColumns, uiBox, uiImage, uiInit, uiPanelBegin, uiPanelEnd, uiStyle, uiText, uiUpdate } from "./ui.js";
+import { drawCommands, layoutSetColumns, uiBox, uiImage, uiInit, uiPanelBegin, uiPanelEnd, uiStyle, uiText, uiUpdate } from "./ui.js";
 import { getKeyInputState, getMouseInputState, getTextHeight, getTextWidth, processCommands } from "./ui_backend_canvas.js";
 
 async function loadImageBitmap(url: string): Promise<ImageBitmap> {
@@ -33,6 +33,21 @@ function draw(time: DOMHighResTimeStamp) {
             uiBox(64, 64);
         }
         uiPanelEnd();
+    }
+    else {
+        drawCommands.push({
+            type: "style",
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        });
+        drawCommands.push({
+            type: "quad",
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+        });
     }
 
     // ctx.fillStyle = "skyblue";
