@@ -16,21 +16,24 @@ var prevTime: DOMHighResTimeStamp = 0.0;
 function draw(time: DOMHighResTimeStamp) {
     const dt = time - prevTime;
 
-    uiStyle(1.0, 0.0, 0.0);
-    if (uiPanelBegin(25, 0, 200, 200)) {
-        layoutSetColumns(2);
-        uiStyle(0.0, 1.0, 0.0);
-        uiBox(64, 64);
-        uiImage(64, 64, bitmap);
-        layoutSetColumns(3);
-        uiStyle(0.0, 0.0, 1.0);
-        uiBox(64, 64);
-        uiImage(64, 64, bitmap);
-        uiText("Hello, world!");
-        uiStyle(0.0, 1.0, 0.0);
-        uiBox(64, 64);
+    const enableOldSystem = false;
+    if (enableOldSystem) {
+        uiStyle(1.0, 0.0, 0.0);
+        if (uiPanelBegin(25, 0, 200, 200)) {
+            layoutSetColumns(2);
+            uiStyle(0.0, 1.0, 0.0);
+            uiBox(64, 64);
+            uiImage(64, 64, bitmap);
+            layoutSetColumns(3);
+            uiStyle(0.0, 0.0, 1.0);
+            uiBox(64, 64);
+            uiImage(64, 64, bitmap);
+            uiText("Hello, world!");
+            uiStyle(0.0, 1.0, 0.0);
+            uiBox(64, 64);
+        }
+        uiPanelEnd();
     }
-    uiPanelEnd();
 
     // ctx.fillStyle = "skyblue";
     // ctx.fillRect(0, 0, 100, 300);
