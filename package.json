@@ -2,7 +2,7 @@
   "name": "webgraphicsdebugger",
   "version": "1.0.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npx http-server . -p 8000 -d false -c-1"
   },
   "author": "Dolf",
   "license": "ISC",
