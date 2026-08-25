@@ -1,0 +1,281 @@
+:root {
+  color-scheme: dark;
+  --bg: #1a1c20;
+  --panel: #222429;
+  --panel-alt: #26292f;
+  --border: #34373d;
+  --text: #d8dade;
+  --text-dim: #8a8d94;
+  --accent: #4fa3ff;
+  --accent-bg: #234163;
+  --danger: #ff6b6b;
+  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.topbar h1 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  background: var(--accent-bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.15);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#capture-status {
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1.1fr;
+  gap: 1px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.layout > section {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scene-pane {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.scene-pane canvas {
+  border: 1px solid var(--border);
+  background: black;
+  max-width: 100%;
+}
+
+.capture-float {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+/* capture stage: just the canvas + floating button, no chrome */
+[data-stage='capture'] .topbar,
+[data-stage='capture'] .call-list-pane,
+[data-stage='capture'] .state-pane {
+  display: none;
+}
+
+[data-stage='capture'] .layout {
+  grid-template-columns: 1fr;
+}
+
+.call-list-pane,
+.state-pane {
+  padding: 0;
+}
+
+h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.call-list {
+  overflow-y: auto;
+  flex: 1;
+  font-family: var(--mono);
+}
+
+.call-row {
+  display: flex;
+  gap: 8px;
+  padding: 2px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-left: 2px solid transparent;
+}
+
+.call-row:hover {
+  background: var(--panel-alt);
+}
+
+.call-row.selected {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+.call-row.errored {
+  color: var(--danger);
+}
+
+.call-row.redundant .name {
+  color: var(--danger);
+}
+
+.call-row .idx {
+  color: var(--text-dim);
+  min-width: 3em;
+  text-align: right;
+}
+
+.call-row .name {
+  font-weight: 600;
+  color: #c9a3ff;
+}
+
+.call-row .args {
+  color: var(--text-dim);
+}
+
+.empty-hint {
+  padding: 16px 12px;
+  color: var(--text-dim);
+}
+
+.preview-pane {
+  flex: 0 0 35%;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.preview-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: black;
+  overflow: hidden;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.state-block {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.state-panel {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px 0;
+}
+
+.state-section {
+  padding: 6px 12px;
+}
+
+.state-section h3 {
+  font-size: 11px;
+  color: var(--accent);
+  margin: 6px 0 4px;
+}
+
+.state-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.state-table td {
+  padding: 1px 6px 1px 0;
+  vertical-align: top;
+}
+
+.state-table td.key {
+  color: var(--text-dim);
+  white-space: nowrap;
+  width: 1%;
+}
+
+.state-table td.val {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.cap-on {
+  color: #7be07b;
+}
+
+.cap-off {
+  color: var(--text-dim);
+}
+
+.obj-ref {
+  color: #ffb454;
+}
+
+.null-val {
+  color: var(--text-dim);
+  font-style: italic;
+}

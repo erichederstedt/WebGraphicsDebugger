@@ -1,0 +1,21 @@
+{
+  "name": "web-graphics-debugger",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "npm run dev --workspace packages/app",
+    "build": "npm run build --workspace packages/app",
+    "build:inject": "npm run build:inject --workspace packages/app",
+    "typecheck": "tsc --noEmit -p packages/core/tsconfig.json && tsc --noEmit -p packages/app/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.5"
+  }
+}
