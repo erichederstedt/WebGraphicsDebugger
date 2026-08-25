@@ -1,4 +1,4 @@
-import { ObjectRegistry } from './objectRegistry.js';
+import { createObjectRegistry, registerObject, type ObjectRegistry } from './objectRegistry.js';
 import { buildConstantMap } from './glConstants.js';
 import { serializeValue, type SerializeContext } from './serialize.js';
 import { ENUM_ARG_INDEX, ENUM_RESULT_METHODS } from './enumArgPositions.js';
@@ -31,7 +31,7 @@ function assignsObjectId(name: string): boolean {
  */
 export function attachRecorder(gl: object, options: RecorderOptions = {}): AttachedRecorder {
   const calls: GLCall[] = [];
-  const registry = options.registry ?? new ObjectRegistry();
+  const registry = options.registry ?? createObjectRegistry();
   const constantMap = buildConstantMap(gl);
   const ctx: SerializeContext = { constantMap, registry };
 
@@ -62,7 +62,7 @@ export function attachRecorder(gl: object, options: RecorderOptions = {}): Attac
     let objectId: number | undefined;
     if (result !== null && typeof result === 'object' && assignsObjectId(name)) {
       const ctorName = (result as { constructor?: { name?: string } }).constructor?.name ?? 'Object';
-      objectId = registry.register(result as object, ctorName).id;
+      objectId = registerObject(registry, result as object, ctorName).id;
     }
     const enumIndices = ENUM_ARG_INDEX[name];
     const call: GLCall = {

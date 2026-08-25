@@ -1,4 +1,4 @@
-import type { ObjectRegistry } from './objectRegistry.js';
+import { resolveObject, type ObjectRegistry } from './objectRegistry.js';
 import type { SerializedArg } from './types.js';
 import { lookupConstantNames } from './glConstants.js';
 
@@ -70,7 +70,7 @@ export function serializeValue(value: unknown, ctx: SerializeContext, hint?: Ser
 
     const ctorName = (obj as { constructor?: { name?: string } }).constructor?.name ?? 'Object';
     if (KNOWN_GL_HANDLE_TYPES.has(ctorName)) {
-      const ref = ctx.registry.resolve(obj, ctorName);
+      const ref = resolveObject(ctx.registry, obj, ctorName);
       return { kind: 'globject', display: `${ref.type}#${ref.id}`, raw: ref };
     }
 

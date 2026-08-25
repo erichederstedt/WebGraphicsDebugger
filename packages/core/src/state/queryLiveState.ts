@@ -1,4 +1,4 @@
-import type { ObjectRegistry } from '../objectRegistry.js';
+import { resolveObject, type ObjectRegistry } from '../objectRegistry.js';
 import type { GLObjectRef } from '../types.js';
 import { BLEND_EQUATIONS, BLEND_FACTORS, CAPABILITIES, COMPARE_FUNCS, CULL_FACE_MODES, DATA_TYPES, FRONT_FACE_MODES } from './glEnums.js';
 import { createEmptyTextureUnit, enumValue, type GLState, type VertexAttribState } from './stateModel.js';
@@ -6,7 +6,7 @@ import { createEmptyTextureUnit, enumValue, type GLState, type VertexAttribState
 function ref(registry: ObjectRegistry, obj: unknown): GLObjectRef | null {
   if (!obj) return null;
   const ctorName = (obj as { constructor?: { name?: string } }).constructor?.name ?? 'Object';
-  return registry.resolve(obj as object, ctorName);
+  return resolveObject(registry, obj as object, ctorName);
 }
 
 function rect(v: Int32Array | number[]): { x: number; y: number; width: number; height: number } {

@@ -1,7 +1,7 @@
 import type { GLCall, GLObjectRef } from './types.js';
 import { BUFFER_TARGETS, CAPABILITIES, FRAMEBUFFER_TARGETS, PIXEL_STORE_PARAMS, TEXTURE_TARGETS } from './state/glEnums.js';
 import type { GLState, Rect } from './state/stateModel.js';
-import type { StateTracker } from './state/stateTracker.js';
+import { stateAt, type StateTracker } from './state/stateTracker.js';
 
 const DRAW_METHODS = new Set(['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements']);
 const READ_SOURCE_METHODS = new Set(['readPixels', 'blitFramebuffer']);
@@ -102,7 +102,7 @@ function findUnusedRenderTargetWrites(calls: readonly GLCall[], stateTracker: St
 
   calls.forEach((call, i) => {
     if (call.threwError) return;
-    const before = stateTracker.getStateAt(i - 1);
+    const before = stateAt(stateTracker, i - 1);
 
     if (call.name === 'clear' || DRAW_METHODS.has(call.name)) {
       const fb = fbKey(before.framebufferBindings.DRAW_FRAMEBUFFER);
@@ -263,7 +263,7 @@ function findNoOpStateChanges(calls: readonly GLCall[], stateTracker: StateTrack
 
   calls.forEach((call, i) => {
     if (call.threwError) return;
-    const evaluated = evaluateStateChange(call, stateTracker.getStateAt(i - 1));
+    const evaluated = evaluateStateChange(call, stateAt(stateTracker, i - 1));
     if (!evaluated) return;
     if (evaluated.isNoOp) redundant.set(call.id, lastWriter.get(evaluated.keys[0]) ?? null);
     for (const key of evaluated.keys) lastWriter.set(key, call.id);

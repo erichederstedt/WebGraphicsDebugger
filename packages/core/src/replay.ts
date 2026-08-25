@@ -1,4 +1,4 @@
-import type { ObjectRegistry } from './objectRegistry.js';
+import { objectById, type ObjectRegistry } from './objectRegistry.js';
 import type { GLCall, SerializedArg } from './types.js';
 
 /** Method names whose execution can change what's visible in the currently bound framebuffer. */
@@ -16,7 +16,7 @@ export const FRAMEBUFFER_AFFECTING_METHODS = new Set([
 export function toReplayArg(arg: SerializedArg, registry: ObjectRegistry): unknown {
   if (arg.kind === 'globject') {
     const ref = arg.raw as { id: number };
-    return registry.objectById(ref.id) ?? null;
+    return objectById(registry, ref.id) ?? null;
   }
   if (arg.kind === 'other') return undefined; // unsupported type; best-effort
   return arg.raw;

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { serializeValue } from '../src/serialize.js';
-import { ObjectRegistry } from '../src/objectRegistry.js';
+import { createObjectRegistry, registerObject, lookupObject } from '../src/objectRegistry.js';
 import { buildConstantMap } from '../src/glConstants.js';
 import { GL_CONSTANTS, makeHandle } from './fixtures/fakeContext.js';
 
 function makeCtx() {
-  return { constantMap: buildConstantMap(GL_CONSTANTS), registry: new ObjectRegistry() };
+  return { constantMap: buildConstantMap(GL_CONSTANTS), registry: createObjectRegistry() };
 }
 
 describe('serializeValue', () => {
@@ -40,7 +40,7 @@ describe('serializeValue', () => {
   });
 
   it('joins names when a value is ambiguous across constants (enum hint)', () => {
-    const ctx = { constantMap: new Map([[0, ['ZERO', 'POINTS']]]), registry: new ObjectRegistry() };
+    const ctx = { constantMap: new Map([[0, ['ZERO', 'POINTS']]]), registry: createObjectRegistry() };
     const result = serializeValue(0, ctx, 'enum');
     expect(result.kind).toBe('enum');
     expect(result.display).toBe('ZERO|POINTS (0)');
@@ -76,7 +76,7 @@ describe('serializeValue', () => {
   it('resolves a known GL handle type through the object registry', () => {
     const ctx = makeCtx();
     const buffer = makeHandle('WebGLBuffer');
-    ctx.registry.register(buffer, 'WebGLBuffer');
+    registerObject(ctx.registry, buffer, 'WebGLBuffer');
     const result = serializeValue(buffer, ctx);
     expect(result).toEqual({ kind: 'globject', display: 'WebGLBuffer#1', raw: { id: 1, type: 'WebGLBuffer', origin: 'created' } });
   });
@@ -86,6 +86,6 @@ describe('serializeValue', () => {
     const info = { name: 'a_position', size: 1, type: GL_CONSTANTS.FLOAT };
     const result = serializeValue(info, ctx);
     expect(result.kind).toBe('other');
-    expect(ctx.registry.lookup(info)).toBeUndefined();
+    expect(lookupObject(ctx.registry, info)).toBeUndefined();
   });
 });

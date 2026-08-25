@@ -3,41 +3,37 @@ import { applyCall } from './applyCall.js';
 import { createInitialState, type GLState } from './stateModel.js';
 
 /**
- * Maintains one GLState snapshot per recorded call so the UI can "rewind" to
- * any point in the recording in O(1). Snapshots share structure (only the
+ * Holds one GLState snapshot per recorded call so the UI can "rewind" to any
+ * point in the recording in O(1). Snapshots share structure (only the
  * branches touched by applyCall are cloned), so this stays cheap even for
  * long recordings.
  */
-export class StateTracker {
-  private snapshots: GLState[] = [];
-  private initial: GLState;
+export interface StateTracker {
+  snapshots: GLState[];
+  initial: GLState;
+}
 
-  constructor(initialState: Partial<GLState> = {}) {
-    this.initial = createInitialState(initialState);
-  }
+export function createStateTracker(initialState: Partial<GLState> = {}): StateTracker {
+  return { snapshots: [], initial: createInitialState(initialState) };
+}
 
-  /** Feed the next call in sequence (must be called in recording order). */
-  push(call: GLCall): GLState {
-    const prev = this.snapshots.length > 0 ? this.snapshots[this.snapshots.length - 1] : this.initial;
-    const next = applyCall(prev, call);
-    this.snapshots.push(next);
-    return next;
-  }
+/** Feed the next call in sequence (must be called in recording order). */
+export function pushCall(tracker: StateTracker, call: GLCall): GLState {
+  const prev = tracker.snapshots.length > 0 ? tracker.snapshots[tracker.snapshots.length - 1] : tracker.initial;
+  const next = applyCall(prev, call);
+  tracker.snapshots.push(next);
+  return next;
+}
 
-  /** Rebuilds all snapshots from a full call list (e.g. after loading a recording). */
-  reset(calls: readonly GLCall[]): void {
-    this.snapshots = [];
-    for (const call of calls) this.push(call);
-  }
+/** Rebuilds all snapshots from a full call list (e.g. after loading a recording). */
+export function resetStateTracker(tracker: StateTracker, calls: readonly GLCall[]): void {
+  tracker.snapshots = [];
+  for (const call of calls) pushCall(tracker, call);
+}
 
-  /** State immediately after `calls[index]`. Pass -1 (or call before any push) for the initial state. */
-  getStateAt(index: number): GLState {
-    if (index < 0 || this.snapshots.length === 0) return this.initial;
-    const clamped = Math.min(index, this.snapshots.length - 1);
-    return this.snapshots[clamped];
-  }
-
-  get length(): number {
-    return this.snapshots.length;
-  }
+/** State immediately after `calls[index]`. Pass -1 (or call before any pushCall) for the initial state. */
+export function stateAt(tracker: StateTracker, index: number): GLState {
+  if (index < 0 || tracker.snapshots.length === 0) return tracker.initial;
+  const clamped = Math.min(index, tracker.snapshots.length - 1);
+  return tracker.snapshots[clamped];
 }

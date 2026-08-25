@@ -1,5 +1,5 @@
 export * from './types.js';
-export { ObjectRegistry } from './objectRegistry.js';
+export { createObjectRegistry, registerObject, resolveObject, lookupObject, objectById, type ObjectRegistry } from './objectRegistry.js';
 export { buildConstantMap, lookupConstantNames } from './glConstants.js';
 export { serializeValue, type SerializeContext, type SerializeHint } from './serialize.js';
 export { attachRecorder, type AttachedRecorder, type RecorderOptions } from './recorder.js';
@@ -9,14 +9,14 @@ export { findRedundantCalls } from './redundancy.js';
 
 export * from './state/stateModel.js';
 export { applyCall } from './state/applyCall.js';
-export { StateTracker } from './state/stateTracker.js';
+export { createStateTracker, pushCall, resetStateTracker, stateAt, type StateTracker } from './state/stateTracker.js';
 export { queryLiveState } from './state/queryLiveState.js';
 export * as glEnums from './state/glEnums.js';
 
 import { attachRecorder } from './recorder.js';
-import { StateTracker } from './state/stateTracker.js';
+import { createStateTracker, pushCall, stateAt, type StateTracker } from './state/stateTracker.js';
 import { queryLiveState } from './state/queryLiveState.js';
-import { ObjectRegistry } from './objectRegistry.js';
+import { createObjectRegistry, type ObjectRegistry } from './objectRegistry.js';
 import type { GLCall, RecordingOptions } from './types.js';
 import type { GLState } from './state/stateModel.js';
 
@@ -32,7 +32,7 @@ export interface DebugSession {
 
 /** Wires a recorder and a state tracker together against a live WebGL context. */
 export function attachDebugSession(gl: object, options: RecordingOptions = {}): DebugSession {
-  const registry = new ObjectRegistry();
+  const registry = createObjectRegistry();
 
   // Best-effort: the frame we're about to record starts from whatever state the page's
   // own (unrecorded) setup code already left the context in, not the GL spec defaults.
@@ -43,11 +43,11 @@ export function attachDebugSession(gl: object, options: RecordingOptions = {}): 
     liveState = undefined; // gl doesn't support the getters this needs (e.g. a test double)
   }
 
-  const stateTracker = new StateTracker(liveState);
+  const stateTracker = createStateTracker(liveState);
   const recorder = attachRecorder(gl, {
     registry,
     onCall: (call) => {
-      stateTracker.push(call);
+      pushCall(stateTracker, call);
       options.onCall?.(call);
     },
   });
@@ -57,6 +57,6 @@ export function attachDebugSession(gl: object, options: RecordingOptions = {}): 
     stateTracker,
     registry: recorder.registry,
     detach: recorder.detach,
-    getStateAt: (index) => stateTracker.getStateAt(index),
+    getStateAt: (index) => stateAt(stateTracker, index),
   };
 }

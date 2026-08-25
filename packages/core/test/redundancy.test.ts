@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { findRedundantCalls } from '../src/redundancy.js';
-import { StateTracker } from '../src/state/stateTracker.js';
+import { createStateTracker, resetStateTracker, type StateTracker } from '../src/state/stateTracker.js';
 import type { GLCall } from '../src/types.js';
 import { makeHandle } from './fixtures/fakeContext.js';
 import { call, recordCalls } from './state/helpers.js';
 
 function trackerFor(calls: readonly GLCall[]): StateTracker {
-  const tracker = new StateTracker();
-  tracker.reset(calls);
+  const tracker = createStateTracker();
+  resetStateTracker(tracker, calls);
   return tracker;
 }
 

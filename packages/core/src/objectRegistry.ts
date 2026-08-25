@@ -9,37 +9,41 @@ import type { GLObjectRef } from './types.js';
  * a single recorded object the same instance is what's passed around, so a
  * WeakMap keyed by identity is sufficient here.
  */
-export class ObjectRegistry {
-  private ids = new WeakMap<object, GLObjectRef>();
-  private byId = new Map<number, object>();
-  private nextId = 1;
+export interface ObjectRegistry {
+  ids: WeakMap<object, GLObjectRef>;
+  byId: Map<number, object>;
+  nextId: number;
+}
 
-  /** Register `obj` as newly created, assigning it a fresh id. Re-registering an already-known object returns its existing ref unchanged. */
-  register(obj: object, type: string): GLObjectRef {
-    const existing = this.ids.get(obj);
-    if (existing) return existing;
-    const ref: GLObjectRef = { id: this.nextId++, type, origin: 'created' };
-    this.ids.set(obj, ref);
-    this.byId.set(ref.id, obj);
-    return ref;
-  }
+export function createObjectRegistry(): ObjectRegistry {
+  return { ids: new WeakMap(), byId: new Map(), nextId: 1 };
+}
 
-  /** Look up the ref for `obj`, lazily assigning an "unknown origin" id if it was never registered via register(). */
-  resolve(obj: object, type: string): GLObjectRef {
-    const existing = this.ids.get(obj);
-    if (existing) return existing;
-    const ref: GLObjectRef = { id: this.nextId++, type, origin: 'unknown' };
-    this.ids.set(obj, ref);
-    this.byId.set(ref.id, obj);
-    return ref;
-  }
+/** Register `obj` as newly created, assigning it a fresh id. Re-registering an already-known object returns its existing ref unchanged. */
+export function registerObject(registry: ObjectRegistry, obj: object, type: string): GLObjectRef {
+  const existing = registry.ids.get(obj);
+  if (existing) return existing;
+  const ref: GLObjectRef = { id: registry.nextId++, type, origin: 'created' };
+  registry.ids.set(obj, ref);
+  registry.byId.set(ref.id, obj);
+  return ref;
+}
 
-  lookup(obj: object): GLObjectRef | undefined {
-    return this.ids.get(obj);
-  }
+/** Look up the ref for `obj`, lazily assigning an "unknown origin" id if it was never registered via registerObject(). */
+export function resolveObject(registry: ObjectRegistry, obj: object, type: string): GLObjectRef {
+  const existing = registry.ids.get(obj);
+  if (existing) return existing;
+  const ref: GLObjectRef = { id: registry.nextId++, type, origin: 'unknown' };
+  registry.ids.set(obj, ref);
+  registry.byId.set(ref.id, obj);
+  return ref;
+}
 
-  /** The inverse of register()/resolve() — recovers the real object behind a previously issued id, e.g. for replay. */
-  objectById(id: number): object | undefined {
-    return this.byId.get(id);
-  }
+export function lookupObject(registry: ObjectRegistry, obj: object): GLObjectRef | undefined {
+  return registry.ids.get(obj);
+}
+
+/** The inverse of registerObject()/resolveObject() — recovers the real object behind a previously issued id, e.g. for replay. */
+export function objectById(registry: ObjectRegistry, id: number): object | undefined {
+  return registry.byId.get(id);
 }
