@@ -1,6 +1,0 @@
-node_modules/
-dist/
-dist-inject/
-*.log
-.DS_Store
-.claude/settings.local.json
