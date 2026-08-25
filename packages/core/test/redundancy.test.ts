@@ -11,7 +11,7 @@ function trackerFor(calls: readonly GLCall[]): StateTracker {
   return tracker;
 }
 
-function redundantCallsIn(calls: GLCall[]): Set<number> {
+function redundantCallsIn(calls: GLCall[]): Map<number, number | null> {
   return findRedundantCalls(calls, trackerFor(calls));
 }
 
@@ -22,7 +22,7 @@ describe('findRedundantCalls — clears', () => {
       call(gl, 'clear', gl.COLOR_BUFFER_BIT);
     });
     const redundant = redundantCallsIn(calls);
-    expect(redundant.has(calls[0].id)).toBe(true);
+    expect(redundant.get(calls[0].id)).toBe(calls[1].id); // points at the clear that superseded it
     expect(redundant.has(calls[1].id)).toBe(false);
   });
 
@@ -116,7 +116,7 @@ describe('findRedundantCalls — no-op state changes', () => {
     });
     const redundant = redundantCallsIn(calls);
     expect(redundant.has(calls[0].id)).toBe(false); // first bind actually changed the binding
-    expect(redundant.has(calls[1].id)).toBe(true);
+    expect(redundant.get(calls[1].id)).toBe(calls[0].id); // points at the call that already set it
   });
 
   it('does not flag binding a different buffer to the same target', () => {
@@ -167,7 +167,7 @@ describe('findRedundantCalls — no-op uniform sets', () => {
     });
     const redundant = redundantCallsIn(calls);
     expect(redundant.has(calls[0].id)).toBe(false);
-    expect(redundant.has(calls[1].id)).toBe(true);
+    expect(redundant.get(calls[1].id)).toBe(calls[0].id);
   });
 
   it('does not flag setting a uniform location to a new value', () => {
@@ -181,11 +181,11 @@ describe('findRedundantCalls — no-op uniform sets', () => {
 });
 
 describe('findRedundantCalls — degenerate draws', () => {
-  it('flags drawArrays with a zero count', () => {
+  it('flags drawArrays with a zero count, with no specific cause to point to', () => {
     const { calls } = recordCalls((gl) => {
       call(gl, 'drawArrays', gl.TRIANGLES, 0, 0);
     });
-    expect(redundantCallsIn(calls).has(calls[0].id)).toBe(true);
+    expect(redundantCallsIn(calls).get(calls[0].id)).toBeNull();
   });
 
   it('flags clear(0)', () => {

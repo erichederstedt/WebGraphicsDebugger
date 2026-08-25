@@ -49,8 +49,8 @@ function sameRect(rect: Rect, call: GLCall): boolean {
  * clear only catches the depth one as redundant, not both. Same-mask
  * back-to-back clears — the common case — are always caught correctly.
  */
-function findRedundantClears(calls: readonly GLCall[]): Set<number> {
-  const redundant = new Set<number>();
+function findRedundantClears(calls: readonly GLCall[]): Map<number, number> {
+  const redundant = new Map<number, number>();
   let currentFb: number | 'default' = 'default';
   const pending = new Map<number | 'default', { id: number; mask: number }>();
 
@@ -73,7 +73,7 @@ function findRedundantClears(calls: readonly GLCall[]): Set<number> {
     if (call.name === 'clear') {
       const mask = argNumber(call, 0) & CLEAR_MASK;
       const prev = pending.get(currentFb);
-      if (prev && (prev.mask & mask) === prev.mask) redundant.add(prev.id);
+      if (prev && (prev.mask & mask) === prev.mask) redundant.set(prev.id, call.id);
       pending.set(currentFb, { id: call.id, mask });
     }
   }
@@ -148,100 +148,127 @@ function findUnusedRenderTargetWrites(calls: readonly GLCall[], stateTracker: St
 }
 
 /**
- * True if `call` sets some piece of tracked GL state (a bind, a capability,
- * a raster/blend param, a clear value, a pixel-store param) to the exact
- * value it already holds — a pure no-op, unconditionally safe to flag since
- * it's a direct before/after comparison, not a guess about later usage.
+ * For a call that sets some piece of tracked GL state (a bind, a capability,
+ * a raster/blend param, a clear value, a pixel-store param): the slot key(s)
+ * it writes, and whether the value it's setting is identical to what's
+ * already there — a pure no-op, unconditionally safe to flag since it's a
+ * direct before/after comparison, not a guess about later usage.
  */
-function isNoOpStateChange(call: GLCall, before: GLState): boolean {
+function evaluateStateChange(call: GLCall, before: GLState): { keys: string[]; isNoOp: boolean } | null {
   switch (call.name) {
     case 'bindBuffer': {
       const target = BUFFER_TARGETS[argNumber(call, 0)];
-      if (!target) return false;
-      return refId((before.bufferBindings as Record<string, GLObjectRef | null>)[target]) === argObjectId(call, 1);
+      if (!target) return null;
+      const isNoOp = refId((before.bufferBindings as Record<string, GLObjectRef | null>)[target]) === argObjectId(call, 1);
+      return { keys: [`buffer:${target}`], isNoOp };
     }
     case 'bindTexture': {
       const target = TEXTURE_TARGETS[argNumber(call, 0)];
-      if (!target) return false;
+      if (!target) return null;
       const unit = before.textureUnits[before.activeTextureUnit];
       const current = unit ? refId((unit as unknown as Record<string, GLObjectRef | null>)[target]) : null;
-      return current === argObjectId(call, 1);
+      return { keys: [`texture:${before.activeTextureUnit}:${target}`], isNoOp: current === argObjectId(call, 1) };
     }
     case 'bindFramebuffer': {
       const target = FRAMEBUFFER_TARGETS[argNumber(call, 0)];
-      if (!target) return false;
+      if (!target) return null;
       const newId = argObjectId(call, 1);
       if (target === 'FRAMEBUFFER') {
-        return refId(before.framebufferBindings.DRAW_FRAMEBUFFER) === newId && refId(before.framebufferBindings.READ_FRAMEBUFFER) === newId;
+        const isNoOp = refId(before.framebufferBindings.DRAW_FRAMEBUFFER) === newId && refId(before.framebufferBindings.READ_FRAMEBUFFER) === newId;
+        return { keys: ['framebuffer:DRAW_FRAMEBUFFER', 'framebuffer:READ_FRAMEBUFFER'], isNoOp };
       }
-      return refId((before.framebufferBindings as Record<string, GLObjectRef | null>)[target]) === newId;
+      const isNoOp = refId((before.framebufferBindings as Record<string, GLObjectRef | null>)[target]) === newId;
+      return { keys: [`framebuffer:${target}`], isNoOp };
     }
     case 'bindRenderbuffer':
-      return refId(before.renderbufferBinding) === argObjectId(call, 1);
+      return { keys: ['renderbuffer'], isNoOp: refId(before.renderbufferBinding) === argObjectId(call, 1) };
     case 'bindVertexArray':
     case 'bindVertexArrayOES':
-      return refId(before.vertexArrayBinding) === argObjectId(call, 0);
+      return { keys: ['vao'], isNoOp: refId(before.vertexArrayBinding) === argObjectId(call, 0) };
     case 'useProgram':
-      return refId(before.currentProgram) === argObjectId(call, 0);
+      return { keys: ['program'], isNoOp: refId(before.currentProgram) === argObjectId(call, 0) };
     case 'activeTexture':
-      return argNumber(call, 0) - 0x84c0 === before.activeTextureUnit; // 0x84c0 = TEXTURE0
+      return { keys: ['activeTexture'], isNoOp: argNumber(call, 0) - 0x84c0 === before.activeTextureUnit }; // 0x84c0 = TEXTURE0
     case 'enable':
-      return before.capabilities[CAPABILITIES[argNumber(call, 0)]] === true;
-    case 'disable':
-      return before.capabilities[CAPABILITIES[argNumber(call, 0)]] === false;
+    case 'disable': {
+      const capName = CAPABILITIES[argNumber(call, 0)];
+      if (!capName) return null;
+      return { keys: [`cap:${capName}`], isNoOp: before.capabilities[capName] === (call.name === 'enable') };
+    }
     case 'viewport':
-      return sameRect(before.viewport, call);
+      return { keys: ['viewport'], isNoOp: sameRect(before.viewport, call) };
     case 'scissor':
-      return sameRect(before.scissorBox, call);
+      return { keys: ['scissor'], isNoOp: sameRect(before.scissorBox, call) };
     case 'clearColor':
-      return [0, 1, 2, 3].every((i) => before.clearColor[i] === argNumber(call, i));
+      return { keys: ['clearColor'], isNoOp: [0, 1, 2, 3].every((i) => before.clearColor[i] === argNumber(call, i)) };
     case 'clearDepth':
-      return before.clearDepth === argNumber(call, 0);
+      return { keys: ['clearDepth'], isNoOp: before.clearDepth === argNumber(call, 0) };
     case 'clearStencil':
-      return before.clearStencil === argNumber(call, 0);
+      return { keys: ['clearStencil'], isNoOp: before.clearStencil === argNumber(call, 0) };
     case 'depthFunc':
-      return before.depth.func.raw === argNumber(call, 0);
+      return { keys: ['depthFunc'], isNoOp: before.depth.func.raw === argNumber(call, 0) };
     case 'depthMask':
-      return before.depth.mask === argBool(call, 0);
+      return { keys: ['depthMask'], isNoOp: before.depth.mask === argBool(call, 0) };
     case 'cullFace':
-      return before.cull.mode.raw === argNumber(call, 0);
+      return { keys: ['cullFace'], isNoOp: before.cull.mode.raw === argNumber(call, 0) };
     case 'frontFace':
-      return before.cull.frontFace.raw === argNumber(call, 0);
+      return { keys: ['frontFace'], isNoOp: before.cull.frontFace.raw === argNumber(call, 0) };
     case 'blendFunc':
-      return (
-        before.blend.srcRGB.raw === argNumber(call, 0) &&
-        before.blend.dstRGB.raw === argNumber(call, 1) &&
-        before.blend.srcAlpha.raw === argNumber(call, 0) &&
-        before.blend.dstAlpha.raw === argNumber(call, 1)
-      );
+      return {
+        keys: ['blendFunc'],
+        isNoOp:
+          before.blend.srcRGB.raw === argNumber(call, 0) &&
+          before.blend.dstRGB.raw === argNumber(call, 1) &&
+          before.blend.srcAlpha.raw === argNumber(call, 0) &&
+          before.blend.dstAlpha.raw === argNumber(call, 1),
+      };
     case 'blendFuncSeparate':
-      return (
-        before.blend.srcRGB.raw === argNumber(call, 0) &&
-        before.blend.dstRGB.raw === argNumber(call, 1) &&
-        before.blend.srcAlpha.raw === argNumber(call, 2) &&
-        before.blend.dstAlpha.raw === argNumber(call, 3)
-      );
+      return {
+        keys: ['blendFunc'],
+        isNoOp:
+          before.blend.srcRGB.raw === argNumber(call, 0) &&
+          before.blend.dstRGB.raw === argNumber(call, 1) &&
+          before.blend.srcAlpha.raw === argNumber(call, 2) &&
+          before.blend.dstAlpha.raw === argNumber(call, 3),
+      };
     case 'blendEquation':
-      return before.blend.equationRGB.raw === argNumber(call, 0) && before.blend.equationAlpha.raw === argNumber(call, 0);
+      return {
+        keys: ['blendEquation'],
+        isNoOp: before.blend.equationRGB.raw === argNumber(call, 0) && before.blend.equationAlpha.raw === argNumber(call, 0),
+      };
     case 'blendEquationSeparate':
-      return before.blend.equationRGB.raw === argNumber(call, 0) && before.blend.equationAlpha.raw === argNumber(call, 1);
+      return {
+        keys: ['blendEquation'],
+        isNoOp: before.blend.equationRGB.raw === argNumber(call, 0) && before.blend.equationAlpha.raw === argNumber(call, 1),
+      };
     case 'pixelStorei': {
       const pname = argNumber(call, 0);
       const name = PIXEL_STORE_PARAMS[pname] ?? `0x${pname.toString(16)}`;
-      return before.pixelStore[name] === call.args[1]?.raw;
+      return { keys: [`pixelStore:${name}`], isNoOp: before.pixelStore[name] === call.args[1]?.raw };
     }
     default:
-      return false;
+      return null;
   }
 }
 
-/** Flags bind calls and state setters that assign a value identical to what's already set — see isNoOpStateChange. */
-function findNoOpStateChanges(calls: readonly GLCall[], stateTracker: StateTracker): Set<number> {
-  const redundant = new Set<number>();
+/**
+ * Flags bind calls and state setters that assign a value identical to what's
+ * already set — see evaluateStateChange. Maps each flagged call to the id of
+ * the earlier call that already set that same value (or `null` if the value
+ * matches the state the capture started with, before call 0).
+ */
+function findNoOpStateChanges(calls: readonly GLCall[], stateTracker: StateTracker): Map<number, number | null> {
+  const redundant = new Map<number, number | null>();
+  const lastWriter = new Map<string, number>();
+
   calls.forEach((call, i) => {
     if (call.threwError) return;
-    if (isNoOpStateChange(call, stateTracker.getStateAt(i - 1))) redundant.add(call.id);
+    const evaluated = evaluateStateChange(call, stateTracker.getStateAt(i - 1));
+    if (!evaluated) return;
+    if (evaluated.isNoOp) redundant.set(call.id, lastWriter.get(evaluated.keys[0]) ?? null);
+    for (const key of evaluated.keys) lastWriter.set(key, call.id);
   });
+
   return redundant;
 }
 
@@ -252,9 +279,9 @@ function findNoOpStateChanges(calls: readonly GLCall[], stateTracker: StateTrack
  * no separate program-identity tracking is needed, and a program's uniform
  * storage persists across switching to other programs and back.
  */
-function findNoOpUniformSets(calls: readonly GLCall[]): Set<number> {
-  const redundant = new Set<number>();
-  const lastValueByLocation = new Map<number, string>();
+function findNoOpUniformSets(calls: readonly GLCall[]): Map<number, number> {
+  const redundant = new Map<number, number>();
+  const lastByLocation = new Map<number, { value: string; callId: number }>();
 
   for (const call of calls) {
     if (call.threwError || !call.name.startsWith('uniform')) continue;
@@ -262,8 +289,9 @@ function findNoOpUniformSets(calls: readonly GLCall[]): Set<number> {
     if (locationId === null) continue;
 
     const value = JSON.stringify(call.args.slice(1).map((a) => a.raw));
-    if (lastValueByLocation.get(locationId) === value) redundant.add(call.id);
-    lastValueByLocation.set(locationId, value);
+    const prev = lastByLocation.get(locationId);
+    if (prev && prev.value === value) redundant.set(call.id, prev.callId);
+    lastByLocation.set(locationId, { value, callId: call.id });
   }
 
   return redundant;
@@ -293,16 +321,34 @@ function findDegenerateDraws(calls: readonly GLCall[]): Set<number> {
   return redundant;
 }
 
+function withoutCause(ids: Set<number>): Map<number, number | null> {
+  return new Map([...ids].map((id) => [id, null]));
+}
+
 /**
  * Flags calls that had no effect on the frame's final visible output: see
  * findRedundantClears, findUnusedRenderTargetWrites, findNoOpStateChanges,
  * findNoOpUniformSets, and findDegenerateDraws.
+ *
+ * Maps each flagged call's id to the id of the specific other call that
+ * makes it redundant, where there is one (a later clear that supersedes an
+ * earlier one, or an earlier call that already set the same state/uniform
+ * value) — or `null` when there isn't a single other call to point to (an
+ * unused render target, or a draw that's degenerate on its own terms).
  */
-export function findRedundantCalls(calls: readonly GLCall[], stateTracker: StateTracker): Set<number> {
-  const redundant = findRedundantClears(calls);
-  for (const id of findUnusedRenderTargetWrites(calls, stateTracker)) redundant.add(id);
-  for (const id of findNoOpStateChanges(calls, stateTracker)) redundant.add(id);
-  for (const id of findNoOpUniformSets(calls)) redundant.add(id);
-  for (const id of findDegenerateDraws(calls)) redundant.add(id);
-  return redundant;
+export function findRedundantCalls(calls: readonly GLCall[], stateTracker: StateTracker): Map<number, number | null> {
+  const merged = new Map<number, number | null>();
+  const apply = (entries: Map<number, number | null>) => {
+    for (const [id, causedBy] of entries) {
+      if (!merged.has(id) || (merged.get(id) === null && causedBy !== null)) merged.set(id, causedBy);
+    }
+  };
+
+  apply(findRedundantClears(calls));
+  apply(withoutCause(findUnusedRenderTargetWrites(calls, stateTracker)));
+  apply(findNoOpStateChanges(calls, stateTracker));
+  apply(findNoOpUniformSets(calls));
+  apply(withoutCause(findDegenerateDraws(calls)));
+
+  return merged;
 }

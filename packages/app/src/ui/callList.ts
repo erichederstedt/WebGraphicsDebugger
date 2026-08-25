@@ -23,7 +23,7 @@ export class CallListView {
     });
   }
 
-  render(calls: readonly GLCall[], redundant: ReadonlySet<number> = new Set()): void {
+  render(calls: readonly GLCall[], redundant: ReadonlyMap<number, number | null> = new Map()): void {
     this.container.innerHTML = '';
     this.rows = [];
 
@@ -40,7 +40,10 @@ export class CallListView {
       const isRedundant = redundant.has(call.id);
       const row = document.createElement('div');
       row.className = 'call-row' + (call.threwError ? ' errored' : '') + (isRedundant ? ' redundant' : '');
-      if (isRedundant) row.title = 'Redundant: overwritten before anything observed it';
+      if (isRedundant) {
+        const cause = redundant.get(call.id);
+        row.title = cause !== null && cause !== undefined ? `Redundant — see call #${cause}` : 'Redundant: had no effect on the final image';
+      }
       row.dataset.index = String(call.id);
 
       const idx = document.createElement('span');
