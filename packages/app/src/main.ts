@@ -12,6 +12,7 @@ const captureStatus = document.getElementById('capture-status') as HTMLElement;
 const callListEl = document.getElementById('call-list') as HTMLElement;
 const statePanelEl = document.getElementById('state-panel') as HTMLElement;
 const previewEl = document.getElementById('render-preview') as HTMLElement;
+const pixelColorEl = document.getElementById('pixel-color') as HTMLElement;
 
 const scene = createDemoScene(canvas);
 
@@ -21,7 +22,7 @@ let thumbnails: ThumbnailTrack | null = null;
 const callListView = new CallListView(callListEl, (index) => {
   if (!currentSession) return;
   renderStatePanel(statePanelEl, currentSession.getStateAt(index));
-  renderPreview(previewEl, thumbnails?.thumbnailAt(index) ?? null);
+  renderPreview(previewEl, pixelColorEl, thumbnails?.thumbnailAt(index) ?? null);
 });
 
 callListView.render([]);

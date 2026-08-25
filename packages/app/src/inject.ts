@@ -67,6 +67,7 @@ export class Debugger {
             <div class="preview-pane">
               <h2>Render Target</h2>
               <div id="render-preview" class="preview-body"></div>
+              <div id="pixel-color" class="pixel-color"></div>
             </div>
             <div class="state-block">
               <h2>GL State</h2>
@@ -83,6 +84,7 @@ export class Debugger {
     const callListEl = shadow.getElementById('call-list') as HTMLElement;
     const statePanelEl = shadow.getElementById('state-panel') as HTMLElement;
     const previewEl = shadow.getElementById('render-preview') as HTMLElement;
+    const pixelColorEl = shadow.getElementById('pixel-color') as HTMLElement;
 
     captureBtn.disabled = true;
     captureStatus.textContent = 'looking for a WebGL2 canvas…';
@@ -92,7 +94,7 @@ export class Debugger {
       const found = findGLCanvas();
       if (found) {
         window.clearInterval(poll);
-        this.wire(found.canvas, found.gl, { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl });
+        this.wire(found.canvas, found.gl, { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl, pixelColorEl });
       } else if (++tries >= CANVAS_POLL_MAX_TRIES) {
         window.clearInterval(poll);
         captureStatus.textContent = 'no WebGL2 canvas found on this page';
@@ -110,16 +112,17 @@ export class Debugger {
       callListEl: HTMLElement;
       statePanelEl: HTMLElement;
       previewEl: HTMLElement;
+      pixelColorEl: HTMLElement;
     },
   ): void {
-    const { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl } = els;
+    const { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl, pixelColorEl } = els;
     let currentSession: DebugSession | null = null;
     let thumbnails: ThumbnailTrack | null = null;
 
     const callListView = new CallListView(callListEl, (index) => {
       if (!currentSession) return;
       renderStatePanel(statePanelEl, currentSession.getStateAt(index));
-      renderPreview(previewEl, thumbnails?.thumbnailAt(index) ?? null);
+      renderPreview(previewEl, pixelColorEl, thumbnails?.thumbnailAt(index) ?? null);
     });
     callListView.render([]);
 

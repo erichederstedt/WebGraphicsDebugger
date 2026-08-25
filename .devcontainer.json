@@ -1,11 +1,16 @@
 {
 	"image": "mcr.microsoft.com/devcontainers/typescript-node:0-18",
 	"forwardPorts": [
-		5173
+		5173,
+		4173
 	],
 	"portsAttributes": {
 		"5173": {
 			"label": "Web Graphics Debugger (Vite)",
+			"onAutoForward": "notify"
+		},
+		"4173": {
+			"label": "wgd.bundle.js (inject preview)",
 			"onAutoForward": "notify"
 		}
 	},
