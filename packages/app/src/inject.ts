@@ -1,10 +1,12 @@
-import { attachDebugSession, findRedundantCalls, type DebugSession } from '@wgd/core';
-import { CallListView } from './ui/callList.js';
-import { renderStatePanel } from './ui/statePanel.js';
-import { renderPreview } from './ui/renderPreview.js';
-import { buildThumbnails, type ThumbnailTrack } from './thumbnails.js';
+import { attachDebugSession, findRedundantCalls } from '@wgd/core';
+import { buildThumbnails } from './thumbnails.js';
 import baseStyles from './style.css?inline';
 import panelStyles from './inject.css?inline';
+
+// Dynamic import: even though this IIFE bundle can't code-split (a single
+// <script src> file can't lazily fetch a chunk), this still defers the
+// actual WASM compile in imguiApp's init to first capture, not page load.
+const loadInspectUI = () => import('./imguiApp.js');
 
 // style.css scopes its variables on :root, which never matches inside a shadow
 // tree (there is no shadow-root equivalent) — retarget them at :host instead.
@@ -59,20 +61,8 @@ export class Debugger {
           </div>
         </header>
         <main class="layout">
-          <section class="call-list-pane">
-            <h2>Call List</h2>
-            <div id="call-list" class="call-list"></div>
-          </section>
-          <section class="state-pane">
-            <div class="preview-pane">
-              <h2>Render Target</h2>
-              <div id="render-preview" class="preview-body"></div>
-              <div id="pixel-color" class="pixel-color"></div>
-            </div>
-            <div class="state-block">
-              <h2>GL State</h2>
-              <div id="state-panel" class="state-panel"></div>
-            </div>
+          <section class="inspect-pane">
+            <div id="inspect-root" class="inspect-root"></div>
           </section>
         </main>
       </div>
@@ -81,10 +71,7 @@ export class Debugger {
     const appEl = shadow.getElementById('app') as HTMLElement;
     const captureBtn = shadow.getElementById('capture-btn') as HTMLButtonElement;
     const captureStatus = shadow.getElementById('capture-status') as HTMLElement;
-    const callListEl = shadow.getElementById('call-list') as HTMLElement;
-    const statePanelEl = shadow.getElementById('state-panel') as HTMLElement;
-    const previewEl = shadow.getElementById('render-preview') as HTMLElement;
-    const pixelColorEl = shadow.getElementById('pixel-color') as HTMLElement;
+    const inspectRootEl = shadow.getElementById('inspect-root') as HTMLElement;
 
     captureBtn.disabled = true;
     captureStatus.textContent = 'looking for a WebGL2 canvas…';
@@ -94,7 +81,7 @@ export class Debugger {
       const found = findGLCanvas();
       if (found) {
         window.clearInterval(poll);
-        this.wire(found.canvas, found.gl, { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl, pixelColorEl });
+        this.wire(found.canvas, found.gl, { appEl, captureBtn, captureStatus, inspectRootEl });
       } else if (++tries >= CANVAS_POLL_MAX_TRIES) {
         window.clearInterval(poll);
         captureStatus.textContent = 'no WebGL2 canvas found on this page';
@@ -109,22 +96,10 @@ export class Debugger {
       appEl: HTMLElement;
       captureBtn: HTMLButtonElement;
       captureStatus: HTMLElement;
-      callListEl: HTMLElement;
-      statePanelEl: HTMLElement;
-      previewEl: HTMLElement;
-      pixelColorEl: HTMLElement;
+      inspectRootEl: HTMLElement;
     },
   ): void {
-    const { appEl, captureBtn, captureStatus, callListEl, statePanelEl, previewEl, pixelColorEl } = els;
-    let currentSession: DebugSession | null = null;
-    let thumbnails: ThumbnailTrack | null = null;
-
-    const callListView = new CallListView(callListEl, (index) => {
-      if (!currentSession) return;
-      renderStatePanel(statePanelEl, currentSession.getStateAt(index));
-      renderPreview(previewEl, pixelColorEl, thumbnails?.thumbnailAt(index) ?? null);
-    });
-    callListView.render([]);
+    const { appEl, captureBtn, captureStatus, inspectRootEl } = els;
 
     captureBtn.disabled = false;
     captureStatus.textContent = '';
@@ -143,14 +118,14 @@ export class Debugger {
         session.detach();
         paused = true;
         canvas.style.visibility = 'hidden'; // it's a frozen, non-interactive frame now
-        currentSession = session;
-        thumbnails = buildThumbnails(gl, session.calls, session.registry);
-        callListView.render(session.calls, findRedundantCalls(session.calls, session.stateTracker));
-        const lastIndex = session.calls.length - 1;
-        if (lastIndex >= 0) callListView.select(lastIndex);
+        const thumbnails = buildThumbnails(gl, session.calls, session.registry);
         captureStatus.textContent = `${session.calls.length} calls captured — app paused`;
         captureBtn.disabled = false;
         appEl.dataset.stage = 'inspect';
+        // The imgui UI keeps redrawing on its own persistent rAF loop below —
+        // must use realRAF too, since the patched window.rAF is now frozen.
+        const redundant = findRedundantCalls(session.calls, session.stateTracker);
+        loadInspectUI().then(({ mountInspectUI }) => mountInspectUI(inspectRootEl, session, redundant, thumbnails, { scheduleFrame: realRAF }));
       });
     });
   }

@@ -1,32 +1,18 @@
-import { attachDebugSession, createInitialState, findRedundantCalls, type DebugSession } from '@wgd/core';
+import { attachDebugSession, findRedundantCalls } from '@wgd/core';
 import { createDemoScene } from './demoScene.js';
-import { CallListView } from './ui/callList.js';
-import { renderStatePanel } from './ui/statePanel.js';
-import { renderPreview } from './ui/renderPreview.js';
-import { buildThumbnails, type ThumbnailTrack } from './thumbnails.js';
+import { buildThumbnails } from './thumbnails.js';
+
+// Dynamic import: imgui-ts embeds a multi-hundred-KB WASM binary, no reason to
+// pay that cost before the user has even captured a frame.
+const loadInspectUI = () => import('./imguiApp.js');
 
 const app = document.getElementById('app') as HTMLElement;
 const canvas = document.getElementById('gl-canvas') as HTMLCanvasElement;
 const captureBtn = document.getElementById('capture-btn') as HTMLButtonElement;
 const captureStatus = document.getElementById('capture-status') as HTMLElement;
-const callListEl = document.getElementById('call-list') as HTMLElement;
-const statePanelEl = document.getElementById('state-panel') as HTMLElement;
-const previewEl = document.getElementById('render-preview') as HTMLElement;
-const pixelColorEl = document.getElementById('pixel-color') as HTMLElement;
+const inspectRoot = document.getElementById('inspect-root') as HTMLElement;
 
 const scene = createDemoScene(canvas);
-
-let currentSession: DebugSession | null = null;
-let thumbnails: ThumbnailTrack | null = null;
-
-const callListView = new CallListView(callListEl, (index) => {
-  if (!currentSession) return;
-  renderStatePanel(statePanelEl, currentSession.getStateAt(index));
-  renderPreview(previewEl, pixelColorEl, thumbnails?.thumbnailAt(index) ?? null);
-});
-
-callListView.render([]);
-renderStatePanel(statePanelEl, createInitialState());
 
 let pendingCapture = false;
 
@@ -41,14 +27,12 @@ function frame(t: number) {
     const session = attachDebugSession(scene.gl);
     scene.drawFrame(t);
     session.detach();
-    currentSession = session;
-    thumbnails = buildThumbnails(scene.gl, session.calls, session.registry);
+    const thumbnails = buildThumbnails(scene.gl, session.calls, session.registry);
 
-    callListView.render(session.calls, findRedundantCalls(session.calls, session.stateTracker));
-    const lastIndex = session.calls.length - 1;
-    if (lastIndex >= 0) callListView.select(lastIndex);
     captureStatus.textContent = `${session.calls.length} calls captured`;
     app.dataset.stage = 'inspect';
+    const redundant = findRedundantCalls(session.calls, session.stateTracker);
+    loadInspectUI().then(({ mountInspectUI }) => mountInspectUI(inspectRoot, session, redundant, thumbnails));
   } else {
     scene.drawFrame(t);
   }

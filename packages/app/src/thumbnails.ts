@@ -1,11 +1,36 @@
 import { replayCalls, type GLCall, type ObjectRegistry } from '@wgd/core';
 
-export interface ThumbnailTrack {
-  /** Render target as a data URL right after calls[callId] (or the nearest prior snapshot); null before the first draw. */
-  thumbnailAt(callId: number): string | null;
+export interface FrameSnapshot {
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+  pixelAt(x: number, y: number): readonly [number, number, number, number];
 }
 
-const NO_THUMBNAILS: ThumbnailTrack = { thumbnailAt: () => null };
+export interface ThumbnailTrack {
+  /** Render target right after calls[callId] (or the nearest prior snapshot); null before the first draw. */
+  snapshotAt(callId: number): FrameSnapshot | null;
+}
+
+const NO_THUMBNAILS: ThumbnailTrack = { snapshotAt: () => null };
+
+function makeSnapshot(pixels: Uint8ClampedArray, width: number, height: number): FrameSnapshot {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx2d = canvas.getContext('2d')!;
+  ctx2d.putImageData(new ImageData(pixels as Uint8ClampedArray<ArrayBuffer>, width, height), 0, 0);
+
+  return {
+    canvas,
+    width,
+    height,
+    pixelAt(x, y) {
+      const i = (y * width + x) * 4;
+      return [pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]];
+    },
+  };
+}
 
 /**
  * Replays a captured frame against the still-live (paused) `gl` context and
@@ -17,34 +42,26 @@ export function buildThumbnails(gl: WebGL2RenderingContext, calls: readonly GLCa
   const height = gl.drawingBufferHeight;
   if (width === 0 || height === 0) return NO_THUMBNAILS;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx2d = canvas.getContext('2d');
-  if (!ctx2d) return NO_THUMBNAILS;
-
-  const pixels = new Uint8Array(width * height * 4);
-  const imageData = ctx2d.createImageData(width, height);
+  const readBuf = new Uint8Array(width * height * 4);
   const rowBytes = width * 4;
-  const snapshotById = new Map<number, string>();
+  const snapshotById = new Map<number, FrameSnapshot>();
 
-  // ponytail: one full-res PNG per snapshot; downscale or reuse ImageBitmaps if heavy scenes make this slow.
   replayCalls(gl, calls, registry, (call) => {
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);
+    const flipped = new Uint8ClampedArray(readBuf.length);
     for (let y = 0; y < height; y++) {
       const srcStart = (height - y - 1) * rowBytes; // GL rows are bottom-up, canvas rows are top-down
-      imageData.data.set(pixels.subarray(srcStart, srcStart + rowBytes), y * rowBytes);
+      flipped.set(readBuf.subarray(srcStart, srcStart + rowBytes), y * rowBytes);
     }
-    ctx2d.putImageData(imageData, 0, 0);
-    snapshotById.set(call.id, canvas.toDataURL('image/png'));
+    snapshotById.set(call.id, makeSnapshot(flipped, width, height));
   });
 
-  let carry: string | null = null;
-  const filled = new Map<number, string | null>();
+  let carry: FrameSnapshot | null = null;
+  const filled = new Map<number, FrameSnapshot | null>();
   for (const call of calls) {
     if (snapshotById.has(call.id)) carry = snapshotById.get(call.id)!;
     filled.set(call.id, carry);
   }
 
-  return { thumbnailAt: (callId) => filled.get(callId) ?? null };
+  return { snapshotAt: (callId) => filled.get(callId) ?? null };
 }

@@ -11,7 +11,8 @@
     "preview:inject": "vite preview --config vite.inject.config.ts --host --port 4173"
   },
   "dependencies": {
-    "@wgd/core": "*"
+    "@wgd/core": "*",
+    "@zhobo63/imgui-ts": "^0.1.53"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

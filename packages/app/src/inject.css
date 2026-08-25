@@ -29,7 +29,7 @@
 }
 
 #app.wgd-panel .layout {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   flex: 1;
   min-height: 0;
 }
