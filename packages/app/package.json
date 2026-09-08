@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:inject": "vite build --config vite.inject.config.ts",
     "preview": "vite preview",
-    "preview:inject": "vite preview --config vite.inject.config.ts --host --port 4173"
+    "preview:inject": "vite preview --config vite.inject.config.ts --host --port 4173",
+    "dev:inject": "npm run build:inject && npm run preview:inject"
   },
   "dependencies": {
     "@wgd/core": "*",

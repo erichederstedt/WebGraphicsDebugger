@@ -11,6 +11,7 @@
     "dev": "npm run dev --workspace packages/app",
     "build": "npm run build --workspace packages/app",
     "build:inject": "npm run build:inject --workspace packages/app",
+    "dev:inject": "npm run dev:inject --workspace packages/app",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json && tsc --noEmit -p packages/app/tsconfig.json"
   },
   "devDependencies": {

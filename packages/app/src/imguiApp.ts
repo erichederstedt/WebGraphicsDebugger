@@ -1,5 +1,6 @@
-import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
 import type { DebugSession, GLCall, GLObjectRef, GLState } from '@wgd/core';
+import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
+import imgui from '@zhobo63/imgui-ts/src/imgui.js';
 import type { FrameSnapshot, ThumbnailTrack } from './thumbnails.js';
 
 // Immediate-mode UI: no widget objects, no view classes — just free functions
@@ -126,17 +127,31 @@ function drawFrame(): void {
   const flags = ImGui.WindowFlags.NoTitleBar | ImGui.WindowFlags.NoResize | ImGui.WindowFlags.NoMove | ImGui.WindowFlags.NoCollapse;
   ImGui.Begin('wgd-inspect', null, flags);
 
-  if (!session || session.calls.length === 0) {
-    ImGui.TextColored(COLOR_DIM, 'No calls recorded yet.');
-    ImGui.End();
-    return;
-  }
+  if (ImGui.BeginTabBar('wgd-inspect-menu')) {
+    if (ImGui.BeginTabItem('wgd-command-inspector')) {
+      if (!session || session.calls.length === 0) {
+        ImGui.TextColored(COLOR_DIM, 'No calls recorded yet.');
+        ImGui.End();
+        return;
+      }
 
-  const avail = ImGui.GetContentRegionAvail();
-  const callListWidth = avail.x * 0.34;
-  drawCallList(callListWidth, avail.y);
-  ImGui.SameLine();
-  drawRightColumn(avail.x - callListWidth - 8, avail.y);
+      const avail = ImGui.GetContentRegionAvail();
+      const callListWidth = avail.x * 0.34;
+      drawCallList(callListWidth, avail.y);
+      ImGui.SameLine();
+      drawRightColumn(avail.x - callListWidth - 8, avail.y);
+      ImGui.EndTabItem();
+    }
+
+    if (ImGui.BeginTabItem('wgd-geometry-inspector')) {
+      const avail = ImGui.GetContentRegionAvail();
+      const callListWidth = avail.x * 0.34;
+      drawCallList(callListWidth, avail.y);
+      ImGui.SameLine();
+      ImGui.EndTabItem();
+    }
+    ImGui.EndTabBar();
+  }
 
   ImGui.End();
 }
@@ -153,9 +168,8 @@ function drawCallList(width: number, height: number): void {
     const cause = redundant.get(call.id);
     const isRedundant = redundant.has(call.id);
     const flagged = isRedundant || call.threwError;
-    const label = `${String(call.id).padStart(3, ' ')}  ${call.name}(${summarizeArgs(call)})${
-      call.objectId != null ? ` -> #${call.objectId}` : ''
-    }##call${call.id}`;
+    const label = `${String(call.id).padStart(3, ' ')}  ${call.name}(${summarizeArgs(call)})${call.objectId != null ? ` -> #${call.objectId}` : ''
+      }##call${call.id}`;
 
     if (flagged) ImGui.PushStyleColor(ImGui.Col.Text, COLOR_DANGER);
     if (ImGui.Selectable(label, isSelected)) {
