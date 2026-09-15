@@ -22,6 +22,17 @@ export function toReplayArg(arg: SerializedArg, registry: ObjectRegistry): unkno
   return arg.raw;
 }
 
+function isDrawCall(call: GLCall): boolean {
+  if (call.name == 'drawArrays' ||
+    call.name == 'drawElements' ||
+    call.name == 'drawArraysInstanced' ||
+    call.name == 'drawElementsInstanced' ||
+    call.name == 'drawRangeElements')
+    return true;
+  else
+    return false;
+}
+
 /**
  * Re-issues every recorded call against the live `gl` context, which must
  * still hold the same buffers/textures/programs used during capture — true
@@ -31,7 +42,12 @@ export function toReplayArg(arg: SerializedArg, registry: ObjectRegistry): unkno
  */
 export function replayCalls(gl: object, calls: readonly GLCall[], registry: ObjectRegistry, onFrame: (call: GLCall) => void): void {
   const target = gl as Record<string, (...a: unknown[]) => unknown>;
-  for (const call of calls) {
+  var callLength = calls.length;
+  while (callLength > 0 && isDrawCall(calls[callLength - 1]) != true) {
+    callLength--;
+  }
+  for (let i = 0; i < callLength; i++) {
+    const call = calls[i];
     if (call.threwError) continue; // never happened for real; nothing to replay
     const args = call.args.map((a) => toReplayArg(a, registry));
     try {
