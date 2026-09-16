@@ -7,13 +7,6 @@ export interface FrameSnapshot {
   pixelAt(x: number, y: number): readonly [number, number, number, number];
 }
 
-export interface ThumbnailTrack {
-  /** Render target right after calls[callId] (or the nearest prior snapshot); null before the first draw. */
-  snapshotAt(callId: number): FrameSnapshot | null;
-}
-
-const NO_THUMBNAILS: ThumbnailTrack = { snapshotAt: () => null };
-
 function makeSnapshot(pixels: Uint8ClampedArray, width: number, height: number): FrameSnapshot {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -33,35 +26,28 @@ function makeSnapshot(pixels: Uint8ClampedArray, width: number, height: number):
 }
 
 /**
- * Replays a captured frame against the still-live (paused) `gl` context and
- * snapshots the framebuffer after every draw/clear, so the call list can show
- * "what did the render target look like at this point" like Spector/RenderDoc.
+ * Replays the frame up to and including `targetCallId` against the still-live
+ * (paused) `gl` context and reads back whatever's in the framebuffer at that
+ * point. Done fresh per call rather than baked for the whole frame up front,
+ * so cost scales with whatever's actually being looked at, not every draw in
+ * the capture — the caller is expected to cache this by call id and only
+ * call again when the selection actually changes.
  */
-export function buildThumbnails(gl: WebGL2RenderingContext, calls: readonly GLCall[], registry: ObjectRegistry): ThumbnailTrack {
+export function snapshotForCall(gl: WebGL2RenderingContext, calls: readonly GLCall[], registry: ObjectRegistry, targetCallId: number): FrameSnapshot | null {
+  if (calls.length === 0 || targetCallId < 0) return null;
   const width = gl.drawingBufferWidth;
   const height = gl.drawingBufferHeight;
-  if (width === 0 || height === 0) return NO_THUMBNAILS;
+  if (width === 0 || height === 0) return null;
+
+  replayCalls(gl, calls, registry, targetCallId);
 
   const readBuf = new Uint8Array(width * height * 4);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);
   const rowBytes = width * 4;
-  const snapshotById = new Map<number, FrameSnapshot>();
-
-  replayCalls(gl, calls, registry, (call) => {
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);
-    const flipped = new Uint8ClampedArray(readBuf.length);
-    for (let y = 0; y < height; y++) {
-      const srcStart = (height - y - 1) * rowBytes; // GL rows are bottom-up, canvas rows are top-down
-      flipped.set(readBuf.subarray(srcStart, srcStart + rowBytes), y * rowBytes);
-    }
-    snapshotById.set(call.id, makeSnapshot(flipped, width, height));
-  });
-
-  let carry: FrameSnapshot | null = null;
-  const filled = new Map<number, FrameSnapshot | null>();
-  for (const call of calls) {
-    if (snapshotById.has(call.id)) carry = snapshotById.get(call.id)!;
-    filled.set(call.id, carry);
+  const flipped = new Uint8ClampedArray(readBuf.length);
+  for (let y = 0; y < height; y++) {
+    const srcStart = (height - y - 1) * rowBytes; // GL rows are bottom-up, canvas rows are top-down
+    flipped.set(readBuf.subarray(srcStart, srcStart + rowBytes), y * rowBytes);
   }
-
-  return { snapshotAt: (callId) => filled.get(callId) ?? null };
+  return makeSnapshot(flipped, width, height);
 }

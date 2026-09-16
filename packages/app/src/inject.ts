@@ -1,5 +1,4 @@
 import { attachDebugSession, findRedundantCalls } from '@wgd/core';
-import { buildThumbnails } from './thumbnails.js';
 import baseStyles from './style.css?inline';
 import panelStyles from './inject.css?inline';
 
@@ -118,14 +117,13 @@ export class Debugger {
         session.detach();
         paused = true;
         canvas.style.visibility = 'hidden'; // it's a frozen, non-interactive frame now
-        const thumbnails = buildThumbnails(gl, session.calls, session.registry);
         captureStatus.textContent = `${session.calls.length} calls captured — app paused`;
         captureBtn.disabled = false;
         appEl.dataset.stage = 'inspect';
         // The imgui UI keeps redrawing on its own persistent rAF loop below —
         // must use realRAF too, since the patched window.rAF is now frozen.
         const redundant = findRedundantCalls(session.calls, session.stateTracker);
-        loadInspectUI().then(({ mountInspectUI }) => mountInspectUI(inspectRootEl, session, redundant, thumbnails, { scheduleFrame: realRAF }));
+        loadInspectUI().then(({ mountInspectUI }) => mountInspectUI(inspectRootEl, gl, session, redundant, { scheduleFrame: realRAF }));
       });
     });
   }

@@ -1,7 +1,6 @@
 import type { DebugSession, GLCall, GLObjectRef, GLState } from '@wgd/core';
 import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
-import imgui from '@zhobo63/imgui-ts/src/imgui.js';
-import type { FrameSnapshot, ThumbnailTrack } from './thumbnails.js';
+import { snapshotForCall, type FrameSnapshot } from './thumbnails.js';
 
 // Immediate-mode UI: no widget objects, no view classes — just free functions
 // redrawing every frame from plain module-level state. Selection, scroll
@@ -21,34 +20,41 @@ let canvas: HTMLCanvasElement | null = null;
 let running = false;
 let scheduleFrame: (cb: FrameRequestCallback) => number = (cb) => window.requestAnimationFrame(cb);
 
+let gl: WebGL2RenderingContext | null = null;
 let session: DebugSession | null = null;
 let redundant: ReadonlyMap<number, number | null> = new Map();
-let thumbnails: ThumbnailTrack | null = null;
 
 let selectedCallId = -1;
 let scrollToSelected = false;
 let pickedPixel: { x: number; y: number; r: number; g: number; b: number; a: number } | null = null;
 let previewTexture: ImGui_Impl.Texture | null = null;
-let previewTextureCallId = -1;
+
+// The render-target preview is replayed on demand for whichever call is
+// selected, not baked for the whole frame up front — cached here so it's
+// only recomputed when the selection actually changes, not every imgui
+// frame (drawPreview runs ~60x/sec regardless of whether anything changed).
+let cachedSnapshot: FrameSnapshot | null = null;
+let cachedSnapshotCallId = -1;
 
 /** Mounts (once) and (re)populates the imgui-driven inspect UI for a freshly captured frame. */
 export async function mountInspectUI(
   container: HTMLElement,
+  nextGl: WebGL2RenderingContext,
   nextSession: DebugSession,
   nextRedundant: ReadonlyMap<number, number | null>,
-  nextThumbnails: ThumbnailTrack,
   opts: { scheduleFrame?: (cb: FrameRequestCallback) => number } = {},
 ): Promise<void> {
   if (opts.scheduleFrame) scheduleFrame = opts.scheduleFrame;
 
+  gl = nextGl;
   session = nextSession;
   redundant = nextRedundant;
-  thumbnails = nextThumbnails;
   const lastCall = nextSession.calls[nextSession.calls.length - 1];
   selectedCallId = lastCall ? lastCall.id : -1;
   scrollToSelected = true;
   pickedPixel = null;
-  previewTextureCallId = -1;
+  cachedSnapshot = null;
+  cachedSnapshotCallId = -1;
 
   await ensureInit(container);
   if (!running) {
@@ -205,16 +211,19 @@ function drawPreview(width: number, height: number): void {
   ImGui.TextColored(COLOR_DIM, 'RENDER TARGET');
   ImGui.Separator();
 
-  const snapshot: FrameSnapshot | null = thumbnails?.snapshotAt(selectedCallId) ?? null;
+  if (cachedSnapshotCallId !== selectedCallId) {
+    cachedSnapshot = gl && session ? snapshotForCall(gl, session.calls, session.registry, selectedCallId) : null;
+    cachedSnapshotCallId = selectedCallId;
+    if (cachedSnapshot) {
+      if (!previewTexture) previewTexture = new ImGui_Impl.Texture();
+      previewTexture.Update(cachedSnapshot.canvas);
+    }
+  }
+  const snapshot: FrameSnapshot | null = cachedSnapshot;
+
   if (!snapshot) {
     ImGui.TextColored(COLOR_DIM, 'No render target yet.');
   } else {
-    if (previewTextureCallId !== selectedCallId) {
-      if (!previewTexture) previewTexture = new ImGui_Impl.Texture();
-      previewTexture.Update(snapshot.canvas);
-      previewTextureCallId = selectedCallId;
-    }
-
     const avail = ImGui.GetContentRegionAvail();
     const budgetHeight = Math.max(1, avail.y - 28);
     const scale = Math.min(avail.x / snapshot.width, budgetHeight / snapshot.height);

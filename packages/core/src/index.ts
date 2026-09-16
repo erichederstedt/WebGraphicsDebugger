@@ -4,7 +4,7 @@ export { buildConstantMap, lookupConstantNames } from './glConstants.js';
 export { serializeValue, type SerializeContext, type SerializeHint } from './serialize.js';
 export { attachRecorder, type AttachedRecorder, type RecorderOptions } from './recorder.js';
 export { ENUM_ARG_INDEX, ENUM_RESULT_METHODS } from './enumArgPositions.js';
-export { replayCalls, toReplayArg, FRAMEBUFFER_AFFECTING_METHODS } from './replay.js';
+export { replayCalls, toReplayArg, isDrawCall, DRAW_CALL_DEBUG_MODE } from './replay.js';
 export { findRedundantCalls } from './redundancy.js';
 
 export * from './state/stateModel.js';

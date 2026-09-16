@@ -1,17 +1,6 @@
 import { objectById, type ObjectRegistry } from './objectRegistry.js';
 import type { GLCall, SerializedArg } from './types.js';
 
-/** Method names whose execution can change what's visible in the currently bound framebuffer. */
-export const FRAMEBUFFER_AFFECTING_METHODS = new Set([
-  'clear',
-  'drawArrays',
-  'drawElements',
-  'drawArraysInstanced',
-  'drawElementsInstanced',
-  'drawRangeElements',
-  'blitFramebuffer',
-]);
-
 /** Reconstructs a real, replayable argument from its serialized form. */
 export function toReplayArg(arg: SerializedArg, registry: ObjectRegistry): unknown {
   if (arg.kind === 'globject') {
@@ -96,34 +85,35 @@ export function useHighlightShader(gl: WebGL2RenderingContext) {
   }
 }
 
-enum DRAW_CALL_DEBUG_MODE {
+export enum DRAW_CALL_DEBUG_MODE {
   NONE,
   HIGHLIGHT
 }
 
 /**
- * Re-issues every recorded call against the live `gl` context, which must
- * still hold the same buffers/textures/programs used during capture — true
- * for a paused debug session, since nothing has run since. Calls back after
- * every call that can change the visible framebuffer, so the caller can
- * snapshot it (e.g. for a render-target preview scrubber).
+ * Re-issues every recorded call up to and including `targetCallId` against
+ * the live `gl` context, which must still hold the same buffers/textures/
+ * programs used during capture — true for a paused debug session, since
+ * nothing has run since. Called fresh for whichever call is currently being
+ * looked at (not for the whole frame up front), so cost scales with what's
+ * actually being inspected. Calls after targetCallId are never replayed, so
+ * this also naturally shows "the state after the most recent thing that
+ * changed the picture" for a call that doesn't itself paint anything — e.g.
+ * selecting a bindBuffer call reads back whatever the last draw/clear before
+ * it left in the framebuffer.
  */
-export function replayCalls(gl: object, calls: readonly GLCall[], registry: ObjectRegistry, onFrame: (call: GLCall) => void, debug_mode: DRAW_CALL_DEBUG_MODE = DRAW_CALL_DEBUG_MODE.NONE): void {
+export function replayCalls(gl: object, calls: readonly GLCall[], registry: ObjectRegistry, targetCallId: number, debug_mode: DRAW_CALL_DEBUG_MODE = DRAW_CALL_DEBUG_MODE.NONE): void {
   const target = gl as Record<string, (...a: unknown[]) => unknown>;
-  var callLength = calls.length;
-  while (callLength > 0 && isDrawCall(calls[callLength - 1]) != true) {
-    callLength--;
-  }
-  for (let i = 0; i < callLength; i++) {
+  const stopAt = Math.min(targetCallId, calls.length - 1);
+  for (let i = 0; i <= stopAt; i++) {
     const call = calls[i];
     if (call.threwError) continue; // never happened for real; nothing to replay
     const args = call.args.map((a) => toReplayArg(a, registry));
     try {
-      // if (i == (callLength - 1)) useHighlightShader(gl as WebGL2RenderingContext);
+      if (debug_mode === DRAW_CALL_DEBUG_MODE.HIGHLIGHT && i === stopAt) useHighlightShader(gl as WebGL2RenderingContext);
       target[call.name](...args);
     } catch {
       // best-effort: skip calls that fail to replay against current live state
     }
-    if (FRAMEBUFFER_AFFECTING_METHODS.has(call.name)) onFrame(call);
   }
 }
