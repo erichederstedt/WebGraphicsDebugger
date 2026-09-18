@@ -1,4 +1,4 @@
-import { replayCalls, type GLCall, type ObjectRegistry } from '@wgd/core';
+import { DRAW_CALL_DEBUG_MODE, replayCalls, type GLCall, type ObjectRegistry } from '@wgd/core';
 
 export interface FrameSnapshot {
   canvas: HTMLCanvasElement;
@@ -39,7 +39,7 @@ export function snapshotForCall(gl: WebGL2RenderingContext, calls: readonly GLCa
   const height = gl.drawingBufferHeight;
   if (width === 0 || height === 0) return null;
 
-  replayCalls(gl, calls, registry, targetCallId);
+  replayCalls(gl, calls, registry, targetCallId, DRAW_CALL_DEBUG_MODE.HIGHLIGHT);
 
   const readBuf = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);
