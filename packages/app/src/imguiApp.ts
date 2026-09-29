@@ -136,7 +136,7 @@ function drawFrame(): void {
       const callListWidth = avail.x * 0.34;
       drawCallList(callListWidth, avail.y);
       ImGui.SameLine();
-      drawGeometryInspector(avail.x - callListWidth - 8, avail.y);
+      drawGeometryInspector(gl, session, selectedCallId, avail.x - callListWidth - 8, avail.y);
       ImGui.EndTabItem();
     }
     ImGui.EndTabBar();

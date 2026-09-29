@@ -1,6 +1,6 @@
-import { DRAW_CALL_DEBUG_MODE, type DebugSession, type GLObjectRef, type GLState } from '@wgd/core';
+import { type DebugSession, type GLObjectRef, type GLState } from '@wgd/core';
 import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
-import { snapshotForCall, type FrameSnapshot } from './thumbnails.js';
+import { DRAW_CALL_DEBUG_MODE, snapshotForCall, type FrameSnapshot } from './thumbnails.js';
 
 const COLOR_DIM = new ImGui.ImVec4(0.541, 0.553, 0.58, 1); // --text-dim
 const COLOR_OBJ = new ImGui.ImVec4(1, 0.71, 0.33, 1); // --obj-ref orange
@@ -28,13 +28,7 @@ export function clearPickedPixel(): void {
   pickedPixel = null;
 }
 
-export function drawCommandInspector(
-  gl: WebGL2RenderingContext,
-  session: DebugSession,
-  selectedCallId: number,
-  width: number,
-  height: number,
-): void {
+export function drawCommandInspector(gl: WebGL2RenderingContext, session: DebugSession, selectedCallId: number, width: number, height: number): void {
   ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
   const previewHeight = Math.max(160, height * 0.4);
   drawPreview(gl, session, selectedCallId, width, previewHeight);
