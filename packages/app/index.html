@@ -15,6 +15,13 @@
       <main class="layout">
         <section class="scene-pane">
           <canvas id="gl-canvas" width="480" height="360"></canvas>
+          <label class="scene-selector" for="scene-select">
+            Scene
+            <select id="scene-select">
+              <option value="triangle">Triangle</option>
+              <option value="cube">Rotating cube</option>
+            </select>
+          </label>
           <button id="capture-btn" class="capture-float">Capture Frame</button>
         </section>
         <section class="inspect-pane">

@@ -28,7 +28,7 @@ const VERTEX_DATA = new Float32Array([
   0.6, -0.5, 0.3, 0.3, 1,
 ]);
 
-function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+export function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type)!;
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
@@ -93,6 +93,11 @@ export function createDemoScene(canvas: HTMLCanvasElement): DemoScene {
 
   function drawFrame(timeMs: number) {
     gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.depthMask(true);
+    gl.disable(gl.CULL_FACE);
+    gl.clearColor(0.08, 0.08, 0.1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.useProgram(program);

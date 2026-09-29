@@ -102,6 +102,11 @@ async function doInit(container: HTMLElement): Promise<void> {
 
 function loop(time: number): void {
   if (!running || !canvas) return;
+  // Switching demo scenes hides the inspector; stop replaying the old capture.
+  if (canvas.getClientRects().length === 0) {
+    scheduleFrame(loop);
+    return;
+  }
   ImGui_Impl.NewFrame(time);
   ImGui.NewFrame();
   drawFrame();
