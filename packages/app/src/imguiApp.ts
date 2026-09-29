@@ -206,6 +206,15 @@ function toHex(n: number): string {
   return n.toString(16).padStart(2, '0');
 }
 
+function largestTextWidth(texts: string[]): number {
+  var largest_width = 0.0;
+  for (let i = 0; i < texts.length; i++) {
+    const size = ImGui.CalcTextSize(texts[i]);
+    largest_width = (largest_width > size.x) ? largest_width : size.x;
+  }
+  return largest_width;
+}
+
 const overlay_items = ["None", "Highlight"];
 var overlay_current_item = overlay_items[0];
 var overlay_dirty = false;
@@ -215,12 +224,7 @@ function drawPreview(width: number, height: number): void {
   ImGui.SameLine();
   ImGui.Text("|");
   ImGui.SameLine();
-  var largest_width = 0.0;
-  for (let i = 0; i < overlay_items.length; i++) {
-    const size = ImGui.CalcTextSize(overlay_items[i]);
-    largest_width = (largest_width > size.x) ? largest_width : size.x;
-  }
-  ImGui.SetNextItemWidth(largest_width + 50);
+  ImGui.SetNextItemWidth(largestTextWidth(overlay_items) + 50);
   if (ImGui.BeginCombo("Overlay", overlay_current_item)) {
     for (let i = 0; i < overlay_items.length; i++) {
       if (ImGui.Selectable(overlay_items[i], overlay_items[i] == overlay_current_item)) {
