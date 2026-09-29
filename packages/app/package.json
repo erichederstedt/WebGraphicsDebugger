@@ -16,6 +16,8 @@
     "@zhobo63/imgui-ts": "^0.1.53"
   },
   "devDependencies": {
+    "esbuild": "^0.21.5",
+    "playwright": "1.45.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.0"
   }
