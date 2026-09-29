@@ -33,13 +33,13 @@ function makeSnapshot(pixels: Uint8ClampedArray, width: number, height: number):
  * the capture — the caller is expected to cache this by call id and only
  * call again when the selection actually changes.
  */
-export function snapshotForCall(gl: WebGL2RenderingContext, calls: readonly GLCall[], registry: ObjectRegistry, targetCallId: number): FrameSnapshot | null {
+export function snapshotForCall(gl: WebGL2RenderingContext, calls: readonly GLCall[], registry: ObjectRegistry, targetCallId: number, debugMode = DRAW_CALL_DEBUG_MODE.NONE): FrameSnapshot | null {
   if (calls.length === 0 || targetCallId < 0) return null;
   const width = gl.drawingBufferWidth;
   const height = gl.drawingBufferHeight;
   if (width === 0 || height === 0) return null;
 
-  replayCalls(gl, calls, registry, targetCallId, DRAW_CALL_DEBUG_MODE.HIGHLIGHT);
+  replayCalls(gl, calls, registry, targetCallId, debugMode);
 
   const readBuf = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);

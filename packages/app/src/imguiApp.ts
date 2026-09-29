@@ -1,4 +1,4 @@
-import type { DebugSession, GLCall, GLObjectRef, GLState } from '@wgd/core';
+import { DRAW_CALL_DEBUG_MODE, type DebugSession, type GLCall, type GLObjectRef, type GLState } from '@wgd/core';
 import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
 import { snapshotForCall, type FrameSnapshot } from './thumbnails.js';
 
@@ -206,13 +206,34 @@ function toHex(n: number): string {
   return n.toString(16).padStart(2, '0');
 }
 
+const overlay_items = ["None", "Highlight"];
+var overlay_current_item = overlay_items[0];
+var overlay_dirty = false;
 function drawPreview(width: number, height: number): void {
   ImGui.BeginChild('preview', new ImGui.ImVec2(width, height), true);
   ImGui.TextColored(COLOR_DIM, 'RENDER TARGET');
+  ImGui.SameLine();
+  ImGui.Text("|");
+  ImGui.SameLine();
+  var largest_width = 0.0;
+  for (let i = 0; i < overlay_items.length; i++) {
+    const size = ImGui.CalcTextSize(overlay_items[i]);
+    largest_width = (largest_width > size.x) ? largest_width : size.x;
+  }
+  ImGui.SetNextItemWidth(largest_width + 50);
+  if (ImGui.BeginCombo("Overlay", overlay_current_item)) {
+    for (let i = 0; i < overlay_items.length; i++) {
+      if (ImGui.Selectable(overlay_items[i], overlay_items[i] == overlay_current_item)) {
+        overlay_current_item = overlay_items[i];
+        overlay_dirty = true;
+      }
+    }
+    ImGui.EndCombo();
+  }
   ImGui.Separator();
 
-  if (cachedSnapshotCallId !== selectedCallId) {
-    cachedSnapshot = gl && session ? snapshotForCall(gl, session.calls, session.registry, selectedCallId) : null;
+  if (cachedSnapshotCallId !== selectedCallId || overlay_dirty == true) {
+    cachedSnapshot = gl && session ? snapshotForCall(gl, session.calls, session.registry, selectedCallId, (overlay_current_item == "Highlight") ? DRAW_CALL_DEBUG_MODE.HIGHLIGHT : DRAW_CALL_DEBUG_MODE.NONE) : null;
     cachedSnapshotCallId = selectedCallId;
     if (cachedSnapshot) {
       if (!previewTexture) previewTexture = new ImGui_Impl.Texture();
