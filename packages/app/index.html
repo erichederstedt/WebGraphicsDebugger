@@ -20,8 +20,13 @@
             <select id="scene-select">
               <option value="triangle">Triangle</option>
               <option value="cube">Rotating cube</option>
+              <option value="sponza">Sponza (OBJ)</option>
+              <option value="sibenik">Sibenik (OBJ)</option>
+              <option value="open-obj">Open OBJ files…</option>
             </select>
           </label>
+          <input id="obj-files" type="file" multiple accept=".obj,.mtl,.jpg,.jpeg,.png,.webp,.bmp" hidden />
+          <div id="scene-status" class="scene-status" role="status" aria-live="polite"></div>
           <button id="capture-btn" class="capture-float">Capture Frame</button>
         </section>
         <section class="inspect-pane">

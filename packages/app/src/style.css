@@ -151,3 +151,16 @@ button:disabled {
   padding: 4px 8px;
   font: inherit;
 }
+
+.scene-status {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 68px;
+  color: var(--text-dim);
+  background: var(--bg);
+  padding: 4px 0;
+  pointer-events: none;
+}
+
+.scene-status:empty { display: none; }

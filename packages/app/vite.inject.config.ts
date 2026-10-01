@@ -9,6 +9,7 @@ import { defineConfig } from 'vite';
 //   s.src = 'https://.../wgd.bundle.js';
 export default defineConfig({
   build: {
+    copyPublicDir: false, // Demo models are not part of the injected debugger.
     outDir: 'dist-inject',
     emptyOutDir: true,
     lib: {

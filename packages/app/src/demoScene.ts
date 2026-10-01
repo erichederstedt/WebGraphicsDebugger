@@ -43,6 +43,7 @@ export function compileShader(gl: WebGL2RenderingContext, type: number, source: 
 export interface DemoScene {
   gl: WebGL2RenderingContext;
   drawFrame: (timeMs: number) => void;
+  dispose?: () => void;
 }
 
 export function createDemoScene(canvas: HTMLCanvasElement): DemoScene {
