@@ -79,15 +79,33 @@ it('captures draw order, interleaved normalized data, integer and constant input
     gl.bindBuffer(gl.COPY_READ_BUFFER, oldReadBuffer);
     const oldArrayBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
     const call = (name: string) => ({ id: 0, name, args: [], result: undefined, timestamp: 0 });
-    const capture = (name: string, args: number[]) => Object.fromEntries(captureVertexAttributes(gl, call(name), args));
+    const capture = (name: string, args: number[]) => Object.fromEntries(captureVertexAttributes(gl, call(name), args).vertexAttributes);
     const arrays = capture('drawArrays', [gl.TRIANGLES, 1, 2]);
     const indexed = capture('drawElementsInstanced', [gl.TRIANGLES, 5, gl.UNSIGNED_SHORT, 2, 3]);
     const ranged = capture('drawRangeElements', [gl.TRIANGLES, 0, 2, 5, gl.UNSIGNED_SHORT, 2]);
     const empty = capture('bindBuffer', [gl.ARRAY_BUFFER]);
+    const metadata = (name: string, args: number[]) => {
+      const data = captureVertexAttributes(gl, call(name), args);
+      return { vertexCount: data.vertexCount, indexCount: data.indexCount,
+        indexBuffer: data.indexBuffer ? Array.from(data.indexBuffer) : null,
+        indexType: data.indexBuffer?.constructor.name ?? null };
+    };
+    const indexedMetadata = metadata('drawElementsInstanced', [gl.TRIANGLES, 5, gl.UNSIGNED_SHORT, 2, 3]);
+    const arraysMetadata = metadata('drawArrays', [gl.TRIANGLES, 1, 2]);
+    const emptyMetadata = metadata('bindBuffer', [gl.ARRAY_BUFFER]);
+    const zeroMetadata = metadata('drawElements', [gl.TRIANGLES, 0, gl.UNSIGNED_SHORT, 2]);
+    const formats = [];
+    for (const [type, data] of [
+      [gl.UNSIGNED_BYTE, new Uint8Array([99, 2, 0, 255, 1])],
+      [gl.UNSIGNED_INT, new Uint32Array([99, 2, 0, 0xffffffff, 1])],
+    ] as const) {
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      formats.push(metadata('drawElements', [gl.TRIANGLES, 4, type, data.BYTES_PER_ELEMENT]));
+    }
     let failed = false;
     try { capture('drawArrays', [gl.TRIANGLES, 100, 3]); } catch { failed = true; }
     return {
-      arrays, indexed, ranged, empty, failed,
+      arrays, indexed, ranged, empty, failed, indexedMetadata, arraysMetadata, emptyMetadata, zeroMetadata, formats,
       restored: gl.getParameter(gl.COPY_READ_BUFFER_BINDING) === oldReadBuffer
         && gl.getParameter(gl.ARRAY_BUFFER_BINDING) === oldArrayBuffer
         && gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING) === indices
@@ -106,6 +124,14 @@ it('captures draw order, interleaved normalized data, integer and constant input
   expect(result.indexed.aColor.slice(0, 8)).toEqual([1, Math.fround(2 / 255), Math.fround(128 / 255), 1, 1, 0, Math.fround(128 / 255), 1]);
   expect(result.ranged.aPosition).toEqual(positions);
   expect(result.empty).toEqual({});
+  expect(result.indexedMetadata).toEqual({ vertexCount: 12, indexCount: 5, indexBuffer: [2, 0, 2, 65535, 1], indexType: 'Uint16Array' });
+  expect(result.arraysMetadata).toEqual({ vertexCount: 2, indexCount: 0, indexBuffer: null, indexType: null });
+  expect(result.emptyMetadata).toEqual({ vertexCount: 0, indexCount: 0, indexBuffer: null, indexType: null });
+  expect(result.zeroMetadata).toEqual(result.emptyMetadata);
+  expect(result.formats).toEqual([
+    { vertexCount: 3, indexCount: 4, indexBuffer: [2, 0, 255, 1], indexType: 'Uint8Array' },
+    { vertexCount: 3, indexCount: 4, indexBuffer: [2, 0, 0xffffffff, 1], indexType: 'Uint32Array' },
+  ]);
   expect(result.failed).toBe(true);
   expect(result.restored).toBe(true);
   expect(result.error).toBe(0);
@@ -149,11 +175,11 @@ it('decodes matrix columns, half floats, packed formats, and missing components'
     gl.vertexAttribPointer(3, 2, gl.SHORT, true, 0, 0);
     gl.enableVertexAttribArray(3);
     const call = { id: 0, name: 'drawArrays', args: [], result: undefined, timestamp: 0 };
-    const unsigned = Object.fromEntries(captureVertexAttributes(gl, call, [gl.POINTS, 0, 1]));
+    const unsigned = Object.fromEntries(captureVertexAttributes(gl, call, [gl.POINTS, 0, 1]).vertexAttributes);
     gl.bindBuffer(gl.ARRAY_BUFFER, packed);
     gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array([512 | (511 << 10) | (2 << 30)]), gl.STATIC_DRAW);
     gl.vertexAttribPointer(2, 4, gl.INT_2_10_10_10_REV, true, 0, 0);
-    const signed = captureVertexAttributes(gl, call, [gl.POINTS, 0, 1]).get('aPacked');
+    const signed = captureVertexAttributes(gl, call, [gl.POINTS, 0, 1]).vertexAttributes.get('aPacked');
     return { unsigned, signed, error: gl.getError() };
   });
   expect(result.unsigned).toEqual({

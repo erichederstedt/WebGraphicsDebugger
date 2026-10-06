@@ -1,5 +1,16 @@
 import type { GLCall } from '@wgd/core';
 
+export interface CapturedVertexAttributes {
+  /** Attribute rows across all instances, including repeats but excluding restart indices. */
+  vertexCount: number;
+  /** Number of indices in the selected draw, including restart markers; not multiplied by instances. */
+  indexCount: number;
+  /** CPU copy of the draw's index range, preserving its unsigned format; null for non-indexed draws. */
+  indexBuffer: Uint8Array | Uint16Array | Uint32Array | null;
+  /** Flattened attribute components in instance/vertex order, as before. */
+  vertexAttributes: Map<string, number[]>;
+}
+
 function attributeShape(gl: WebGL2RenderingContext, type: number): [number, number] {
   switch (type) {
     case gl.FLOAT: case gl.INT: case gl.UNSIGNED_INT: return [1, 1];
@@ -56,17 +67,18 @@ function readComponent(data: DataView, offset: number, type: number, normalized:
  * component. Matrices use column-major order. Restart indices have no vertex.
  * This reads live buffer contents; it does not reconstruct historical bytes.
  */
-export function captureVertexAttributes(gl: WebGL2RenderingContext, call: GLCall, args: readonly unknown[]): Map<string, number[]> {
+export function captureVertexAttributes(gl: WebGL2RenderingContext, call: GLCall, args: readonly unknown[]): CapturedVertexAttributes {
   const attributes = new Map<string, number[]>();
+  const result: CapturedVertexAttributes = { vertexCount: 0, indexCount: 0, indexBuffer: null, vertexAttributes: attributes };
   const indexed = call.name === 'drawElements' || call.name === 'drawElementsInstanced' || call.name === 'drawRangeElements';
-  if (!indexed && call.name !== 'drawArrays' && call.name !== 'drawArraysInstanced') return attributes;
+  if (!indexed && call.name !== 'drawArrays' && call.name !== 'drawArraysInstanced') return result;
   const range = call.name === 'drawRangeElements';
   const count = Number(args[range ? 3 : indexed ? 1 : 2]);
   const instances = call.name === 'drawArraysInstanced' ? Number(args[3])
     : call.name === 'drawElementsInstanced' ? Number(args[4]) : 1;
-  if (count <= 0 || instances <= 0) return attributes;
+  if (count <= 0 || instances <= 0) return result;
   const program = gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram | null;
-  if (!program) return attributes;
+  if (!program) return result;
 
   const oldReadBuffer = gl.getParameter(gl.COPY_READ_BUFFER_BINDING) as WebGLBuffer | null;
   const buffers = new Map<WebGLBuffer, DataView>();
@@ -94,14 +106,20 @@ export function captureVertexAttributes(gl: WebGL2RenderingContext, call: GLCall
       const bytes = componentBytes(type);
       const restart = 2 ** (bytes * 8) - 1;
       const data = readBuffer(buffer);
+      result.indexCount = count;
+      result.indexBuffer = type === gl.UNSIGNED_BYTE ? new Uint8Array(count)
+        : type === gl.UNSIGNED_SHORT ? new Uint16Array(count) : new Uint32Array(count);
       for (let i = 0; i < count; i++) {
         const index = readComponent(data, offset + i * bytes, type, false);
+        result.indexBuffer[i] = index;
         if (index !== restart) vertices.push(index);
       }
     } else {
       const first = Number(args[1]);
       for (let i = 0; i < count; i++) vertices.push(first + i);
     }
+
+    result.vertexCount = vertices.length * instances;
 
     const activeCount = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES) as number;
     for (let i = 0; i < activeCount; i++) {
@@ -157,7 +175,7 @@ export function captureVertexAttributes(gl: WebGL2RenderingContext, call: GLCall
       }
       attributes.set(info.name, values);
     }
-    return attributes;
+    return result;
   } finally {
     // COPY_READ_BUFFER avoids changing the VAO's element/attribute bindings.
     gl.bindBuffer(gl.COPY_READ_BUFFER, oldReadBuffer);

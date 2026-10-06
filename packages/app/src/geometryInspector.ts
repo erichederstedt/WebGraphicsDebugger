@@ -1,9 +1,8 @@
-import { type DebugSession, replayCalls } from '@wgd/core';
+import { replayCalls, type DebugSession } from '@wgd/core';
 import { ImGui } from '@zhobo63/imgui-ts';
-import { captureVertexAttributes } from './vertexData.js';
+import { captureVertexAttributes, type CapturedVertexAttributes } from './vertexData.js';
 
-// Attribute names map to flattened VS-input components in draw order.
-let vertexAttribute: Map<string, number[]> = new Map();
+let vertexData: CapturedVertexAttributes | null = null;
 let cachedSession: DebugSession | null = null;
 let cachedGl: WebGL2RenderingContext | null = null;
 let cachedCallId = -1;
@@ -13,13 +12,13 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
   ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
 
   if (cachedSession !== session || cachedGl !== gl || cachedCallId !== selectedCallId) {
-    vertexAttribute = new Map();
+    vertexData = null;
     captureError = null;
     replayCalls(gl, session.calls, session.registry, selectedCallId, (target, call, args, commandIndex, stopAt) => {
       // Capture before the draw: transform feedback may write into buffers.
       if (commandIndex === stopAt) {
         try {
-          vertexAttribute = captureVertexAttributes(gl, call, args);
+          vertexData = captureVertexAttributes(gl, call, args);
         } catch (error) {
           captureError = error instanceof Error ? error.message : String(error);
         }
@@ -33,28 +32,62 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
 
   if (captureError) ImGui.Text(`Could not capture vertex inputs: ${captureError}`);
 
-  if (ImGui.BeginTable("Vertex Input", 2 + vertexAttribute.keys.length, ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg)) {
+  const vertexAttribute = vertexData?.vertexAttributes ?? new Map<string, number[]>();
+
+  // for (const [key, value] of vertexAttribute) {
+  //   console.log(value);
+  // }
+
+  // console.log(vertexAttribute);
+
+  if (vertexData && ImGui.BeginTable("Vertex Input", 2 + vertexAttribute.size, ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg | ImGui.TableFlags.SizingFixedFit)) {
     // ImGui.TableHeader("Vertex Input"); // Doesn't seem to do anything???
     ImGui.TableSetupColumn("Vtx");
     ImGui.TableSetupColumn("Idx");
-    for (const key in vertexAttribute.keys) {
+    for (const [key, value] of vertexAttribute) {
       ImGui.TableSetupColumn(key);
     }
     ImGui.TableHeadersRow();
 
-    ImGui.TableNextRow();
-    ImGui.TableNextColumn();
-    ImGui.Text("5");
-    ImGui.TableNextColumn();
-    ImGui.Text("8");
+    for (let i = 0; i < vertexData.vertexCount; i++) {
+      const vertex = i;
+      var index = vertex;
+      if (vertexData.indexBuffer) {
+        index = vertexData.indexBuffer[i];
+      }
 
-    ImGui.TableNextRow();
-    ImGui.TableNextColumn();
-    ImGui.Text("8");
-    ImGui.TableNextColumn();
-    ImGui.Text("5");
+      ImGui.TableNextRow();
+      ImGui.TableNextColumn();
+      ImGui.Text(vertex.toString());
+      ImGui.TableNextColumn();
+      ImGui.Text(index.toString());
 
+      for (const [key, value] of vertexAttribute) {
+        ImGui.TableNextColumn();
+        const elementCount = value.length / vertexData.vertexCount;
+        var elementString = "";
+        for (let j = 0; j < elementCount; j++) {
+          if (j != 0)
+            elementString += ", ";
+          elementString += value[index].toPrecision(3);
+        }
+        ImGui.Text("(" + elementString + ")");
+      }
+    }
     ImGui.EndTable();
+  }
+
+  if (ImGui.BeginTabBar('wgd-geometry-inspector-menu')) {
+    if (ImGui.BeginTabItem('Pre Vertex Shader')) {
+      ImGui.Text("1");
+      ImGui.EndTabItem();
+    }
+
+    if (ImGui.BeginTabItem('Post Vertex Shader')) {
+      ImGui.Text("2");
+      ImGui.EndTabItem();
+    }
+    ImGui.EndTabBar();
   }
 
   ImGui.EndChild();
