@@ -16,6 +16,9 @@ interface MeshViewer {
     yaw: number;
     pitch: number;
     looking: boolean;
+    arcball: boolean;
+    orbitDistance: number;
+    orbitAxes: number[];
 }
 let viewer: MeshViewer | null = null;
 
@@ -50,6 +53,9 @@ function frameMesh(v: MeshViewer): void {
     v.eye = [v.center[0], v.center[1], v.center[2] + v.radius * 3];
     v.yaw = 0;
     v.pitch = 0;
+    v.looking = false;
+    v.orbitDistance = v.radius * 3;
+    v.orbitAxes = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 }
 
 function uploadMesh(v: MeshViewer, data: CapturedVertexAttributes, attribute: string): void {
@@ -120,6 +126,7 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
             target: null, data: null, attribute: '',
             center: [0, 0, 0], radius: 1, eye: [0, 0, 3],
             yaw: 0, pitch: 0, looking: false,
+            arcball: false, orbitDistance: 3, orbitAxes: [1, 0, 0, 0, 1, 0, 0, 0, 1],
         };
     }
     const v = viewer;
@@ -143,9 +150,21 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
         ImGui.EndCombo();
     }
     if (v.data !== data || v.attribute !== attribute) uploadMesh(v, data, attribute);
+    if (ImGui.BeginCombo('Camera', v.arcball ? 'Arcball' : 'Free cam')) {
+        if (ImGui.Selectable('Free cam', !v.arcball) && v.arcball) {
+            v.arcball = false;
+            frameMesh(v);
+        }
+        if (ImGui.Selectable('Arcball', v.arcball) && !v.arcball) {
+            v.arcball = true;
+            frameMesh(v);
+        }
+        ImGui.EndCombo();
+    }
     if (ImGui.Button('Frame mesh')) frameMesh(v);
     ImGui.SameLine();
-    ImGui.Text('Right-drag: look | WASD + Q/E: move | Shift: faster');
+    if (v.arcball) ImGui.Text('Left-drag: orbit | Scroll: zoom');
+    else ImGui.Text('Right-drag: look | WASD + Q/E: move | Shift: faster');
     const available = ImGui.GetContentRegionAvail();
     if (available.x < 1 || available.y < 1) return;
     const io = ImGui.GetIO();
@@ -155,10 +174,27 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
         if (v.target) destroyRenderTarget(gl, v.target);
         v.target = createRenderTarget(gl, { x: width, y: height });
     }
+    const imagePosition = ImGui.GetCursorScreenPos();
     ImGui.Image(v.target.texture, available, new ImGui.ImVec2(0, 1), new ImGui.ImVec2(1, 0));
-    if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(1)) v.looking = true;
-    if (!ImGui.IsMouseDown(1)) v.looking = false;
-    if (v.looking && !io.WantTextInput) {
+    const hovered = ImGui.IsItemHovered();
+    const button = v.arcball ? 0 : 1;
+    if (hovered && ImGui.IsMouseClicked(button)) v.looking = true;
+    if (!ImGui.IsMouseDown(button)) v.looking = false;
+    if (v.arcball) {
+        if (v.looking) {
+            const mouseX = io.MousePos.x - imagePosition.x;
+            const mouseY = io.MousePos.y - imagePosition.y;
+            rotateArcball(v.orbitAxes, mouseX - io.MouseDelta.x, mouseY - io.MouseDelta.y,
+                mouseX, mouseY, available.x, available.y);
+        }
+        if (hovered) {
+            v.orbitDistance *= Math.exp(-io.MouseWheel * 0.15);
+            v.orbitDistance = Math.max(v.radius * 0.01, Math.min(v.radius * 100, v.orbitDistance));
+        }
+        for (let i = 0; i < 3; i++) {
+            v.eye[i] = v.center[i] + v.orbitAxes[6 + i] * v.orbitDistance;
+        }
+    } else if (v.looking && !io.WantTextInput) {
         v.yaw -= io.MouseDelta.x * 0.005;
         v.pitch = Math.max(-1.55, Math.min(1.55, v.pitch - io.MouseDelta.y * 0.005));
         const step = v.radius * Math.min(io.DeltaTime, 0.1) * (io.KeyShift ? 4 : 1);
@@ -206,6 +242,13 @@ function renderMesh(v: MeshViewer, mode: number, ranges: { first: number; count:
     const z = [Math.sin(v.yaw) * Math.cos(v.pitch), -Math.sin(v.pitch), Math.cos(v.yaw) * Math.cos(v.pitch)];
     const x = [Math.cos(v.yaw), 0, -Math.sin(v.yaw)];
     const y = [z[1] * x[2], z[2] * x[0] - z[0] * x[2], -z[1] * x[0]];
+    if (v.arcball) {
+        for (let i = 0; i < 3; i++) {
+            x[i] = v.orbitAxes[i];
+            y[i] = v.orbitAxes[3 + i];
+            z[i] = v.orbitAxes[6 + i];
+        }
+    }
     const translation = [0, 0, 0];
     let distanceSquared = 0;
     for (let i = 0; i < 3; i++) {
@@ -250,5 +293,38 @@ function renderMesh(v: MeshViewer, mode: number, ranges: { first: number; count:
     for (let i = 0; i < renderFlags.length; i++) {
         if (enabled[i]) gl.enable(renderFlags[i]);
         else gl.disable(renderFlags[i]);
+    }
+}
+
+function arcballPoint(x: number, y: number, width: number, height: number): number[] {
+    const scale = Math.min(width, height);
+    x = (2 * x - width) / scale;
+    y = (height - 2 * y) / scale;
+    const lengthSquared = x * x + y * y;
+    if (lengthSquared <= 1) return [x, y, Math.sqrt(1 - lengthSquared)];
+    const length = Math.sqrt(lengthSquared);
+    return [x / length, y / length, 0];
+}
+
+export function rotateArcball(axes: number[], oldX: number, oldY: number,
+    newX: number, newY: number, width: number, height: number): void {
+    const a = arcballPoint(oldX, oldY, width, height);
+    const b = arcballPoint(newX, newY, width, height);
+    const axis = [b[1] * a[2] - b[2] * a[1], b[2] * a[0] - b[0] * a[2], b[0] * a[1] - b[1] * a[0]];
+    let sine = Math.sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    const cosine = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+    if (sine < 0.000001) return;
+    const worldAxis = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+        worldAxis[i] = (axes[i] * axis[0] + axes[3 + i] * axis[1] + axes[6 + i] * axis[2]) / sine;
+    }
+    // Rodrigues rotation of the camera basis keeps orbiting free of pole clamps.
+    for (let column = 0; column < 3; column++) {
+        const offset = column * 3;
+        const x = axes[offset], y = axes[offset + 1], z = axes[offset + 2];
+        const dot = worldAxis[0] * x + worldAxis[1] * y + worldAxis[2] * z;
+        axes[offset] = x * cosine + (worldAxis[1] * z - worldAxis[2] * y) * sine + worldAxis[0] * dot * (1 - cosine);
+        axes[offset + 1] = y * cosine + (worldAxis[2] * x - worldAxis[0] * z) * sine + worldAxis[1] * dot * (1 - cosine);
+        axes[offset + 2] = z * cosine + (worldAxis[0] * y - worldAxis[1] * x) * sine + worldAxis[2] * dot * (1 - cosine);
     }
 }
