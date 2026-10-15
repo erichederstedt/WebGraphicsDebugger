@@ -1,5 +1,6 @@
 import { replayCalls, type DebugSession } from '@wgd/core';
-import { ImGui } from '@zhobo63/imgui-ts';
+import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
+import { createProgramFromSource, createRenderTarget, destroyRenderTarget, RenderTarget } from './glUtil.js';
 import { captureVertexAttributes, type CapturedVertexAttributes } from './vertexData.js';
 
 let vertexData: CapturedVertexAttributes | null = null;
@@ -7,6 +8,7 @@ let cachedSession: DebugSession | null = null;
 let cachedGl: WebGL2RenderingContext | null = null;
 let cachedCallId = -1;
 let captureError: string | null = null;
+let cachedMeshViewRenderTarget: RenderTarget | null = null;
 
 export function drawGeometryInspector(gl: WebGL2RenderingContext, session: DebugSession, selectedCallId: number, width: number, height: number): void {
   ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
@@ -84,7 +86,47 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
   if (ImGui.BeginTabBar('wgd-geometry-inspector-menu')) {
     if (ImGui.BeginTabItem('Pre Vertex Shader')) {
       ImGui.Text("1");
+      const viewerGl: WebGL2RenderingContext = ImGui_Impl.gl as WebGL2RenderingContext;
+
+      const previousFramebuffer = viewerGl.getParameter(viewerGl.FRAMEBUFFER_BINDING);
+      const previousViewport = viewerGl.getParameter(viewerGl.VIEWPORT) as Int32Array;
+      const previousClearColor = viewerGl.getParameter(viewerGl.COLOR_CLEAR_VALUE) as Float32Array;
+      const scissorEnabled = viewerGl.isEnabled(viewerGl.SCISSOR_TEST);
+      const previousProgram = viewerGl.getParameter(viewerGl.CURRENT_PROGRAM);
+
       const availableScreenSpace = ImGui.GetContentRegionAvail(new ImGui.ImVec2());
+      if (cachedMeshViewRenderTarget == null) {
+        cachedMeshViewRenderTarget = createRenderTarget(viewerGl, availableScreenSpace);
+      }
+      if ((cachedMeshViewRenderTarget.size.x != availableScreenSpace.x || cachedMeshViewRenderTarget.size.y != availableScreenSpace.y)) {
+        destroyRenderTarget(viewerGl, cachedMeshViewRenderTarget);
+        cachedMeshViewRenderTarget = createRenderTarget(viewerGl, availableScreenSpace);
+      }
+      const renderTarget = cachedMeshViewRenderTarget;
+      viewerGl.bindFramebuffer(viewerGl.FRAMEBUFFER, renderTarget.framebuffer);
+      viewerGl.viewport(0, 0, renderTarget.size.x, renderTarget.size.y);
+      viewerGl.disable(viewerGl.SCISSOR_TEST);
+      viewerGl.clearColor(0, 0, 1, 1);
+      viewerGl.clear(viewerGl.COLOR_BUFFER_BIT | viewerGl.DEPTH_BUFFER_BIT);
+
+      const vertexShader = `attribute vec4 a_position;
+      void main() {
+        gl_Position = a_position;
+      }`;
+      const fragmentShader = `precision mediump float; 
+      void main() {
+        gl_FragColor = vec4(1, 0, 0.5, 1);
+      }`;
+      // const program = createProgramFromSource(viewerGl, vertexShader, fragmentShader);
+
+      viewerGl.bindFramebuffer(viewerGl.FRAMEBUFFER, previousFramebuffer);
+      viewerGl.viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+      viewerGl.clearColor(previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
+      if (scissorEnabled) viewerGl.enable(viewerGl.SCISSOR_TEST);
+      viewerGl.useProgram(previousProgram);
+
+      ImGui.Image(renderTarget.texture, renderTarget.size);
+
       ImGui.EndTabItem();
     }
 
