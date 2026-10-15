@@ -2,6 +2,7 @@ import type { DebugSession, GLCall } from '@wgd/core';
 import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
 import { clearPickedPixel, drawCommandInspector, resetCommandInspector } from './commandInspector.js';
 import { drawGeometryInspector } from './geometryInspector.js';
+import { drawShaderInspector } from './shaderInspector.js';
 
 // Immediate-mode UI: no widget objects, no view classes — just free functions
 // redrawing every frame from plain module-level state. Selection and scroll
@@ -179,6 +180,15 @@ function drawFrame(): void {
       drawCallList(callListWidth, avail.y);
       ImGui.SameLine();
       drawGeometryInspector(gl, session, selectedCallId, avail.x - callListWidth - 8, avail.y);
+      ImGui.EndTabItem();
+    }
+
+    if (ImGui.BeginTabItem('wgd-shader-inspector')) {
+      const avail = ImGui.GetContentRegionAvail();
+      const callListWidth = avail.x * 0.34;
+      drawCallList(callListWidth, avail.y);
+      ImGui.SameLine();
+      drawShaderInspector(gl, session, selectedCallId, avail.x - callListWidth - 8, avail.y);
       ImGui.EndTabItem();
     }
     ImGui.EndTabBar();

@@ -8,7 +8,7 @@ const COLOR_CAP_ON = new ImGui.ImVec4(0.48, 0.88, 0.48, 1);
 const HEADER_OPEN = ImGui.TreeNodeFlags.DefaultOpen;
 const KV_TABLE_FLAGS = ImGui.TableFlags.RowBg | ImGui.TableFlags.SizingStretchProp;
 
-let pickedPixel: { x: number; y: number; r: number; g: number; b: number; a: number } | null = null;
+export let pickedPixel: { x: number; y: number; r: number; g: number; b: number; a: number } | null = null;
 let previewTexture: ImGui_Impl.Texture | null = null;
 
 // The render-target preview is replayed on demand for whichever call is
