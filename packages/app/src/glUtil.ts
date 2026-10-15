@@ -1,13 +1,15 @@
 // glUtils.ts
 
-import { Vec2 } from "@zhobo63/imgui-ts/src/imgui";
+type TargetSize = { x: number; y: number };
 
 export interface RenderTarget {
-    size: Vec2;
+    size: TargetSize;
     texture: WebGLTexture;
     framebuffer: WebGLFramebuffer;
+    depth: WebGLRenderbuffer;
 }
-export function createRenderTarget(gl: WebGL2RenderingContext, size: Vec2): RenderTarget {
+export function createRenderTarget(gl: WebGL2RenderingContext, size: TargetSize): RenderTarget {
+    const previousRenderbuffer = gl.getParameter(gl.RENDERBUFFER_BINDING) as WebGLRenderbuffer | null;
     const previousTexture = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
     const previousDrawFramebuffer = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
     const previousReadFramebuffer = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
@@ -23,18 +25,24 @@ export function createRenderTarget(gl: WebGL2RenderingContext, size: Vec2): Rend
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 
+    const depth = gl.createRenderbuffer()!;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, size.x, size.y);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, previousRenderbuffer);
     gl.bindTexture(gl.TEXTURE_2D, previousTexture);
     // FRAMEBUFFER changes both bindings; they may have differed on entry.
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, previousDrawFramebuffer);
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, previousReadFramebuffer);
 
-    return { size: size, texture: texture, framebuffer: frameBuffer };
+    return { size: { x: size.x, y: size.y }, texture: texture, framebuffer: frameBuffer, depth };
 }
 export function destroyRenderTarget(gl: WebGL2RenderingContext, renderTarget: RenderTarget): void {
     // Deletion preserves unrelated bindings and unbinds the deleted resources.
     // Do not bind FRAMEBUFFER here: that would overwrite both read and draw bindings.
     gl.deleteFramebuffer(renderTarget.framebuffer);
     gl.deleteTexture(renderTarget.texture);
+    gl.deleteRenderbuffer(renderTarget.depth);
 }
 
 enum ShaderType {
@@ -69,8 +77,8 @@ export interface Program {
 }
 export function createProgram(gl: WebGL2RenderingContext, vertexShader: Shader, fragmentShader: Shader): Program | null {
     const program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
+    gl.attachShader(program, vertexShader.shader);
+    gl.attachShader(program, fragmentShader.shader);
     gl.linkProgram(program);
     var success = gl.getProgramParameter(program, gl.LINK_STATUS);
     if (success) {
@@ -85,7 +93,8 @@ export function createProgramFromSource(gl: WebGL2RenderingContext, vertexShader
     const vertexShader = createShader(gl, ShaderType.Vertex, vertexShaderSource);
     const fragmentShader = createShader(gl, ShaderType.Fragment, fragmentShaderSource);
     if (vertexShader != null && fragmentShader != null) {
-        return createProgram(gl, vertexShader, fragmentShader);
+        const program = createProgram(gl, vertexShader, fragmentShader);
+        if (program) return program;
     }
 
     if (vertexShader != null)
@@ -97,4 +106,6 @@ export function createProgramFromSource(gl: WebGL2RenderingContext, vertexShader
 }
 export function destroyProgram(gl: WebGL2RenderingContext, program: Program) {
     gl.deleteProgram(program.program);
+    destroyShader(gl, program.vertexShader);
+    destroyShader(gl, program.fragmentShader);
 }
