@@ -210,7 +210,7 @@ function drawCallList(width: number, height: number): void {
     if (flagged) ImGui.PopStyleColor();
 
     if (isRedundant && ImGui.IsItemHovered()) {
-      ImGui.SetTooltip(cause != null ? `Redundant — see call #${cause}` : 'Redundant: had no effect on the final image');
+      ImGui.SetTooltip(cause != null ? `Redundant — see call #${cause}` : 'Redundant: had no effect on the final image.\nMade redundant due to a call in a previous frame.');
     }
     if (scrollToSelected && isSelected) ImGui.SetScrollHereY();
   }

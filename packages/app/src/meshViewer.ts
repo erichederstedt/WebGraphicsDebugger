@@ -1,3 +1,4 @@
+import { clipVolumeLines } from './postMesh.js';
 import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
 import { createProgramFromSource, createRenderTarget, destroyRenderTarget, type Program, type RenderTarget } from './glUtil.js';
 import type { CapturedVertexAttributes } from './vertexData.js';
@@ -7,6 +8,8 @@ interface MeshViewer {
     program: Program;
     vao: WebGLVertexArrayObject;
     buffer: WebGLBuffer;
+    boxVao: WebGLVertexArrayObject;
+    postVS: boolean;
     target: RenderTarget | null;
     data: CapturedVertexAttributes | null;
     attribute: string;
@@ -20,7 +23,7 @@ interface MeshViewer {
     orbitDistance: number;
     orbitAxes: number[];
 }
-let viewer: MeshViewer | null = null;
+const viewers: (MeshViewer | null)[] = [null, null];
 
 // Captured attributes are already expanded. Restart markers and instances still
 // separate primitive sequences, particularly for strips, fans, and line loops.
@@ -61,13 +64,15 @@ function frameMesh(v: MeshViewer): void {
 function uploadMesh(v: MeshViewer, data: CapturedVertexAttributes, attribute: string): void {
     const values = data.vertexAttributes.get(attribute)!;
     const components = values.length / data.vertexCount;
-    const positions = new Float32Array(data.vertexCount * 3);
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
+    const positions = new Float32Array(data.vertexCount * 4);
+    const status = data.vertexAttributes.get('_clipStatus');
+    const min = v.postVS ? [-1, -1, -1] : [Infinity, Infinity, Infinity];
+    const max = v.postVS ? [1, 1, 1] : [-Infinity, -Infinity, -Infinity];
     for (let i = 0; i < data.vertexCount; i++) {
+        positions[i * 4 + 3] = status ? status[i] : -1;
         for (let c = 0; c < 3; c++) {
             const value = c < components ? values[i * components + c] : 0;
-            positions[i * 3 + c] = value;
+            positions[i * 4 + c] = value;
             min[c] = Math.min(min[c], value);
             max[c] = Math.max(max[c], value);
         }
@@ -89,9 +94,9 @@ function uploadMesh(v: MeshViewer, data: CapturedVertexAttributes, attribute: st
     frameMesh(v);
 }
 
-export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: number, instances: number): void {
+export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: number, instances: number, postVS = false): void {
     const gl = ImGui_Impl.gl as WebGL2RenderingContext;
-    if (data === null || data.vertexCount === 0) { ImGui.Text('Select a draw with vertex inputs.'); return; }
+    if (data === null || (data.vertexCount === 0 && !postVS)) { ImGui.Text('Select a draw with vertex inputs.'); return; }
     const names: string[] = [];
     const attributes = data.vertexAttributes.entries();
     let entry = attributes.next();
@@ -104,31 +109,57 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
         }
         entry = attributes.next();
     }
+    if (postVS && data.vertexCount === 0) names[0] = 'NDC position';
     if (!names.length) { ImGui.Text('No vec2, vec3, or vec4 position input is available.'); return; }
+    const viewerIndex = postVS ? 1 : 0;
+    let viewer = viewers[viewerIndex];
     if (!viewer) {
         const program = createProgramFromSource(gl, `#version 300 es
-      layout(location=0) in vec3 position;
+      layout(location=0) in vec4 position;
       uniform mat4 view; uniform mat4 projection;
-      void main() { gl_Position=projection*view*vec4(position,1); gl_PointSize=4.0; }`, `#version 300 es
+      out float status;
+      void main() {
+        gl_Position = projection * view * vec4(position.xyz, 1);
+        gl_PointSize = 4.0;
+        status = position.w;
+      }`, `#version 300 es
       precision highp float;
+      in float status;
       out vec4 color;
-      void main() { color=vec4(gl_FrontFacing ? vec3(0.0,0.0,1.0) : vec3(1.0,0.0,0.0),1); }`);
+      void main() {
+        vec3 rgb = gl_FrontFacing ? vec3(0,0,1) : vec3(1,0,0);
+        if (status >= 0.0) rgb = vec3(0.35, 0.75, 1.0);
+        if (status >= 0.5) rgb = vec3(1.0, 0.3, 0.35);
+        if (status >= 1.5) rgb = vec3(1.0, 0.6, 0.15);
+        if (status >= 3.5) rgb = vec3(0.1, 1.0, 1.0);
+        if (status >= 4.5) rgb = vec3(1.0, 1.0, 0.1);
+        if (status >= 5.5) rgb = vec3(1.0);
+        color = vec4(rgb, 1);
+      }`);
         const vao = gl.createVertexArray()!, buffer = gl.createBuffer()!;
         const oldVao = gl.getParameter(gl.VERTEX_ARRAY_BINDING), oldBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
         gl.bindVertexArray(vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+        gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 16, 0);
+        const boxVao = gl.createVertexArray()!;
+        const boxBuffer = gl.createBuffer();
+        gl.bindVertexArray(boxVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, boxBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, clipVolumeLines(), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 16, 0);
         gl.bindVertexArray(oldVao);
         gl.bindBuffer(gl.ARRAY_BUFFER, oldBuffer);
         viewer = {
-            gl, program: program!, vao, buffer,
+            gl, program: program!, vao, buffer, boxVao, postVS,
             target: null, data: null, attribute: '',
             center: [0, 0, 0], radius: 1, eye: [0, 0, 3],
             yaw: 0, pitch: 0, looking: false,
             arcball: false, orbitDistance: 3, orbitAxes: [1, 0, 0, 0, 1, 0, 0, 0, 1],
         };
     }
+    viewers[viewerIndex] = viewer;
     const v = viewer;
     let attribute = names[0];
     for (let i = 0; i < names.length; i++) {
@@ -143,7 +174,7 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
             break;
         }
     }
-    if (ImGui.BeginCombo('Position', attribute)) {
+    if (!postVS && ImGui.BeginCombo('Position', attribute)) {
         for (let i = 0; i < names.length; i++) {
             if (ImGui.Selectable(names[i], names[i] === attribute)) attribute = names[i];
         }
@@ -161,7 +192,13 @@ export function drawMeshViewer(data: CapturedVertexAttributes | null, mode: numb
         }
         ImGui.EndCombo();
     }
-    if (ImGui.Button('Frame mesh')) frameMesh(v);
+    if (ImGui.Button('Frame mesh')) uploadMesh(v, data, attribute);
+    if (postVS) {
+        ImGui.SameLine();
+        if (ImGui.Button('Frame clip volume')) {
+            v.center = [0, 0, 0]; v.radius = Math.sqrt(3); frameMesh(v);
+        }
+    }
     ImGui.SameLine();
     if (v.arcball) ImGui.Text('Left-drag: orbit | Scroll: zoom');
     else ImGui.Text('Right-drag: look | WASD + Q/E: move | Shift: faster');
@@ -280,6 +317,12 @@ function renderMesh(v: MeshViewer, mode: number, ranges: { first: number; count:
     gl.uniformMatrix4fv(gl.getUniformLocation(v.program.program, 'projection'), false, projection);
     for (let i = 0; i < ranges.length; i++) {
         gl.drawArrays(mode, ranges[i].first, ranges[i].count);
+    }
+    if (v.postVS) {
+        // The original camera's bounds remain visible through the inspected mesh.
+        gl.disable(gl.DEPTH_TEST);
+        gl.bindVertexArray(v.boxVao);
+        gl.drawArrays(gl.LINES, 0, 24);
     }
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, old.framebuffer);
     gl.viewport(old.viewport[0], old.viewport[1], old.viewport[2], old.viewport[3]);
