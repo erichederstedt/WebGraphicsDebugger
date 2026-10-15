@@ -40,8 +40,12 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
 
   // console.log(vertexAttribute);
 
-  if (vertexData && ImGui.BeginTable("Vertex Input", 2 + vertexAttribute.size, ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg | ImGui.TableFlags.SizingFixedFit)) {
-    // ImGui.TableHeader("Vertex Input"); // Doesn't seem to do anything???
+
+  const visibleRows = 20;
+  const tableHeight = ImGui.GetTextLineHeightWithSpacing() * (visibleRows + 1);
+  const flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg | ImGui.TableFlags.SizingFixedFit | ImGui.TableFlags.ContextMenuInBody | ImGui.TableFlags.ScrollX | ImGui.TableFlags.ScrollY;
+  if (vertexData && ImGui.BeginTable("Vertex Input", 2 + vertexAttribute.size, flags, new ImGui.ImVec2(0, tableHeight))) {
+    ImGui.TableSetupScrollFreeze(0, 1);
     ImGui.TableSetupColumn("Vtx");
     ImGui.TableSetupColumn("Idx");
     for (const [key, value] of vertexAttribute) {
@@ -69,7 +73,7 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
         for (let j = 0; j < elementCount; j++) {
           if (j != 0)
             elementString += ", ";
-          elementString += value[index].toPrecision(3);
+          elementString += value[i * elementCount + j].toPrecision(3);
         }
         ImGui.Text("(" + elementString + ")");
       }
@@ -80,11 +84,13 @@ export function drawGeometryInspector(gl: WebGL2RenderingContext, session: Debug
   if (ImGui.BeginTabBar('wgd-geometry-inspector-menu')) {
     if (ImGui.BeginTabItem('Pre Vertex Shader')) {
       ImGui.Text("1");
+      const availableScreenSpace = ImGui.GetContentRegionAvail(new ImGui.ImVec2());
       ImGui.EndTabItem();
     }
 
     if (ImGui.BeginTabItem('Post Vertex Shader')) {
       ImGui.Text("2");
+      const availableScreenSpace = ImGui.GetContentRegionAvail(new ImGui.ImVec2());
       ImGui.EndTabItem();
     }
     ImGui.EndTabBar();
