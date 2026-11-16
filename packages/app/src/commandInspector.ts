@@ -1,5 +1,5 @@
 import { type DebugSession, type GLObjectRef, type GLState } from '@wgd/core';
-import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
+import { ImGui, ImGui_Impl } from '@eric.hederstedt/imgui-ts';
 import { DRAW_CALL_DEBUG_MODE, snapshotForCall, type FrameSnapshot } from './thumbnails.js';
 
 const COLOR_DIM = new ImGui.ImVec4(0.541, 0.553, 0.58, 1); // --text-dim

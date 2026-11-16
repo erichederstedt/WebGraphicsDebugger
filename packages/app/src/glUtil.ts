@@ -45,7 +45,7 @@ export function destroyRenderTarget(gl: WebGL2RenderingContext, renderTarget: Re
     gl.deleteRenderbuffer(renderTarget.depth);
 }
 
-enum ShaderType {
+export enum ShaderType {
     Vertex = 0x8B31,
     Fragment = 0x8B30
 }

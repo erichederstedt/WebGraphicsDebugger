@@ -1,5 +1,5 @@
 import { replayCalls, type DebugSession } from '@wgd/core';
-import { ImGui } from '@zhobo63/imgui-ts';
+import { ImGui } from '@eric.hederstedt/imgui-ts';
 import { drawMeshViewer } from './meshViewer.js';
 import { captureVertexAttributes, type CapturedVertexAttributes } from './vertexData.js';
 import { capturePostVertexAttributes, type PostVertexCapture } from './postVertexData.js';

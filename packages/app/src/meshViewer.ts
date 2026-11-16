@@ -1,5 +1,5 @@
 import { clipVolumeLines } from './postMesh.js';
-import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
+import { ImGui, ImGui_Impl } from '@eric.hederstedt/imgui-ts';
 import { createProgramFromSource, createRenderTarget, destroyRenderTarget, type Program, type RenderTarget } from './glUtil.js';
 import type { CapturedVertexAttributes } from './vertexData.js';
 

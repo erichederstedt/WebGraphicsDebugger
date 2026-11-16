@@ -1,5 +1,5 @@
 import type { DebugSession, GLCall } from '@wgd/core';
-import { ImGui, ImGui_Impl } from '@zhobo63/imgui-ts';
+import { ImGui, ImGui_Impl } from '@eric.hederstedt/imgui-ts';
 import { clearPickedPixel, drawCommandInspector, resetCommandInspector } from './commandInspector.js';
 import { drawGeometryInspector } from './geometryInspector.js';
 import { drawShaderInspector } from './shaderInspector.js';
