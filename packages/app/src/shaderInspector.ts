@@ -1,6 +1,6 @@
 import { CreateTextEditor, ImGui, TextEditor, TextEditorErrorMarker } from "@eric.hederstedt/imgui-ts";
 import { LabelText } from "@eric.hederstedt/imgui-ts/src/imgui";
-import { DebugSession } from "@wgd/core";
+import { DebugSession, GLState, objectById } from "@wgd/core";
 import { pickedPixel } from "./commandInspector";
 import { createShader, Shader, ShaderType } from "./glUtil";
 
@@ -61,6 +61,20 @@ function compileShaderView(gl: WebGL2RenderingContext, shaderSource: string, typ
     return shader;
 }
 
+function getSourceFromProgram(gl: WebGL2RenderingContext, program: WebGLProgram, type: ShaderType): string {
+    const shader = gl.getAttachedShaders(program)?.find(
+        shader => gl.getShaderParameter(shader, gl.SHADER_TYPE) === type,
+    );
+    if (!shader)
+        return "Source not found!";
+
+    const shaderSource = gl.getShaderSource(shader);
+    if (!shaderSource)
+        return "Source not found!";
+
+    return shaderSource;
+}
+
 function initShaderInspector(gl: WebGL2RenderingContext): void {
     const shaderSource = `#version 300 es
 precision mediump float;
@@ -77,28 +91,66 @@ void main()
     gl.deleteShader(shader);
 }
 let hasInit = false;
+let prevSelectedCallId: number | null = null;
+let state: GLState | null = null;
+enum Tab {
+    None,
+    Vertex,
+    Fragment
+}
+let prevTab: Tab = Tab.None;
 export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSession, selectedCallId: number, width: number, height: number): void {
     if (!hasInit) {
         initShaderInspector(gl);
         hasInit = true;
     }
+
+    if (prevSelectedCallId != selectedCallId) {
+        state = session.getStateAt(selectedCallId);
+    }
+
     ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
     if (ImGui.BeginTabBar('wgd-shader-inspector-menu')) {
         if (ImGui.BeginTabItem('Vertex Shader')) {
+            if (prevTab != Tab.Vertex) {
+                const ref = state?.currentProgram;
+                if (ref) {
+                    const program = objectById(session.registry, ref.id) as WebGLProgram;
+                    const source = getSourceFromProgram(gl, program, ShaderType.Vertex);
+                    editor?.SetText(source);
+                }
+                prevTab = Tab.Vertex;
+            }
+            drawShaderView((lines: number[]) => { });
+            if (editor?.IsTextChanged()) {
+                const shader = compileShaderView(gl, editor.GetText(), ShaderType.Vertex);
+                showCompileErrors(gl, shader);
+                gl.deleteShader(shader);
+                console.log("refresh vertex");
+            }
+            ImGui.EndTabItem();
+        }
+        if (ImGui.BeginTabItem('Fragment Shader')) {
+            if (prevTab != Tab.Fragment) {
+                const ref = state?.currentProgram;
+                if (ref) {
+                    const program = objectById(session.registry, ref.id) as WebGLProgram;
+                    const source = getSourceFromProgram(gl, program, ShaderType.Fragment);
+                    editor?.SetText(source);
+                }
+                prevTab = Tab.Fragment;
+            }
             drawShaderView((lines: number[]) => { });
             if (editor?.IsTextChanged()) {
                 const shader = compileShaderView(gl, editor.GetText(), ShaderType.Fragment);
                 showCompileErrors(gl, shader);
                 gl.deleteShader(shader);
-                console.log("refresh");
+                console.log("refresh fragment");
             }
-            ImGui.EndTabItem();
-        }
-        if (ImGui.BeginTabItem('Fragment Shader')) {
-            ImGui.Text("Not implemented!");
             ImGui.EndTabItem();
         }
         ImGui.EndTabBar();
     }
     ImGui.EndChild();
+    prevSelectedCallId = selectedCallId;
 }
