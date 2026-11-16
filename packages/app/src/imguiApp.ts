@@ -1,3 +1,4 @@
+import { installImGuiKeyboard } from './imguiKeyboard.js';
 import type { DebugSession, GLCall } from '@wgd/core';
 import { ImGui, ImGui_Impl } from '@eric.hederstedt/imgui-ts';
 import { clearPickedPixel, drawCommandInspector, resetCommandInspector } from './commandInspector.js';
@@ -70,25 +71,9 @@ const MOUSE_BUTTON_MAP = [0, 2, 1, 3, 4];
 // use canvas-level listeners internally so they're unaffected, only clicks
 // silently do nothing. Attaching our own listeners directly on the canvas
 // sidesteps retargeting entirely (harmless duplicate work on a plain page).
-const letterKeys = new Uint8Array(26);
-
-function updateLetterKeys(event: KeyboardEvent): void {
-  if (event.code.length === 4 && event.code.substring(0, 3) === 'Key') {
-    letterKeys[event.code.charCodeAt(3) - 65] = event.type === 'keydown' ? 1 : 0;
-  }
-
-  // Run after imgui-ts: it maps "Shift" to S, "Alt" to A, etc.
-  const io = ImGui.GetIO();
-  for (let i = 0; i < 26; i++) {
-    io.KeysDown[65 + i] = letterKeys[i] !== 0;
-    io.KeysDown[97 + i] = letterKeys[i] !== 0;
-  }
-}
-
 function clearInput(): void {
   const io = ImGui.GetIO();
   // imgui-ts exposes these through proxies whose .length is not the native size.
-  for (let i = 0; i < 26; i++) letterKeys[i] = 0;
   for (let i = 0; i < 512; i++) io.KeysDown[i] = false;
   for (let i = 0; i < 5; i++) io.MouseDown[i] = false;
   io.KeyShift = false;
@@ -112,8 +97,6 @@ function patchPointerEvents(target: HTMLCanvasElement): void {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearInput();
   });
-  window.addEventListener('keydown', updateLetterKeys);
-  window.addEventListener('keyup', updateLetterKeys);
 }
 
 async function doInit(container: HTMLElement): Promise<void> {
@@ -128,6 +111,7 @@ async function doInit(container: HTMLElement): Promise<void> {
   ImGui.StyleColorsDark();
   ImGui.GetIO().Fonts.AddFontDefault();
   ImGui_Impl.Init(canvas);
+  installImGuiKeyboard();
   patchPointerEvents(canvas);
 
   const style = ImGui.GetStyle();
