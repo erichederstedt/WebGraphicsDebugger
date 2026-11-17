@@ -3,6 +3,7 @@ import { CreateTextEditor, ImGui, TextEditor, TextEditorErrorMarker } from "@eri
 import imgui, { LabelText } from "@eric.hederstedt/imgui-ts/src/imgui";
 import { DebugSession, GLState, objectById } from "@wgd/core";
 import { pickedPixel } from "./commandInspector";
+import { captureGeometry, vertexData } from './geometryInspector';
 import { createShader, Shader, ShaderType } from "./glUtil";
 
 let editor: TextEditor | null = null;
@@ -14,9 +15,16 @@ function initShaderView(source: string): void {
     editor.SetTabSize(4);
 }
 
+export const shaderInspectorData = {
+    inspectedVertexIndex: -1
+};
 // Call every frame, inside your normal ImGui frame.
 function drawShaderView(onBreakpointsChanged: (lines: number[]) => void): void {
     if (!editor) return;
+
+    if (ImGui.InputInt("Vertex Index", (_ = shaderInspectorData.inspectedVertexIndex) => shaderInspectorData.inspectedVertexIndex = _)) {
+        shaderInspectorData.inspectedVertexIndex = clamp(shaderInspectorData.inspectedVertexIndex, 0, vertexData ? (vertexData.vertexCount - 1) : 0);
+    }
 
     if (ImGui.Button("Play")) { }
     ImGui.SameLine();
@@ -118,13 +126,14 @@ export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSe
 
     if (prevSelectedCallId != selectedCallId) {
         state = session.getStateAt(selectedCallId);
+        captureGeometry(gl, session, selectedCallId, false);
     }
 
     ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
     if (ImGui.BeginTabBar('wgd-shader-inspector-menu')) {
         if (ImGui.BeginTabItem('Vertex Shader')) {
             let editorUpdate = false;
-            if (prevTab != Tab.Vertex) {
+            if (prevTab != Tab.Vertex || prevSelectedCallId != selectedCallId) {
                 const ref = state?.currentProgram;
                 if (ref) {
                     const program = objectById(session.registry, ref.id) as WebGLProgram;
@@ -145,7 +154,7 @@ export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSe
         }
         if (ImGui.BeginTabItem('Fragment Shader')) {
             let editorUpdate = false;
-            if (prevTab != Tab.Fragment) {
+            if (prevTab != Tab.Fragment || prevSelectedCallId != selectedCallId) {
                 const ref = state?.currentProgram;
                 if (ref) {
                     const program = objectById(session.registry, ref.id) as WebGLProgram;
@@ -168,4 +177,7 @@ export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSe
     }
     ImGui.EndChild();
     prevSelectedCallId = selectedCallId;
+}
+function clamp(vertexIndex: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, vertexIndex));
 }

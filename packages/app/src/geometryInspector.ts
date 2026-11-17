@@ -1,11 +1,12 @@
-import { replayCalls, type DebugSession } from '@wgd/core';
 import { ImGui } from '@eric.hederstedt/imgui-ts';
+import { replayCalls, type DebugSession } from '@wgd/core';
 import { drawMeshViewer } from './meshViewer.js';
-import { captureVertexAttributes, type CapturedVertexAttributes } from './vertexData.js';
-import { capturePostVertexAttributes, type PostVertexCapture } from './postVertexData.js';
 import { buildPostMesh, type PostMesh } from './postMesh.js';
+import { capturePostVertexAttributes, type PostVertexCapture } from './postVertexData.js';
+import { shaderInspectorData } from './shaderInspector.js';
+import { captureVertexAttributes, type CapturedVertexAttributes } from './vertexData.js';
 
-let vertexData: CapturedVertexAttributes | null = null;
+export let vertexData: CapturedVertexAttributes | null = null;
 let postData: PostVertexCapture | null = null;
 let postMesh: PostMesh | null = null;
 let cachedSession: DebugSession | null = null;
@@ -17,7 +18,7 @@ let instanceCount = 1;
 let firstVertex = 0;
 let sourceIndices: number[] = [];
 
-function captureGeometry(gl: WebGL2RenderingContext, session: DebugSession, selectedCallId: number, postVS: boolean): void {
+export function captureGeometry(gl: WebGL2RenderingContext, session: DebugSession, selectedCallId: number, postVS: boolean): void {
     const changed = cachedSession !== session || cachedGl !== gl || cachedCallId !== selectedCallId;
     if (!changed && (!postVS || postData !== null || captureError !== null)) return;
     vertexData = null;
@@ -85,7 +86,11 @@ function drawVertexTable(data: CapturedVertexAttributes | null, label: string, h
             const vertex = row % rowsPerInstance;
             const index = sourceIndices.length > 0 ? sourceIndices[vertex] : firstVertex + vertex;
             ImGui.TableNextRow();
-            ImGui.TableNextColumn(); ImGui.Text(Math.floor(row / rowsPerInstance).toString());
+            ImGui.TableNextColumn();
+            const instance = Math.floor(row / rowsPerInstance);
+            if (ImGui.Selectable(`${instance}##row_${row}`, shaderInspectorData.inspectedVertexIndex === row, ImGui.SelectableFlags.SpanAllColumns)) {
+                shaderInspectorData.inspectedVertexIndex = row;
+            }
             ImGui.TableNextColumn(); ImGui.Text(vertex.toString());
             ImGui.TableNextColumn(); ImGui.Text(index.toString());
             for (let column = 0; column < names.length; column++) {
