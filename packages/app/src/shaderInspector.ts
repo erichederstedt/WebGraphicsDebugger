@@ -1,5 +1,6 @@
+import GLSL from '@eric.hederstedt/glsl-transpiler';
 import { CreateTextEditor, ImGui, TextEditor, TextEditorErrorMarker } from "@eric.hederstedt/imgui-ts";
-import { LabelText } from "@eric.hederstedt/imgui-ts/src/imgui";
+import imgui, { LabelText } from "@eric.hederstedt/imgui-ts/src/imgui";
 import { DebugSession, GLState, objectById } from "@wgd/core";
 import { pickedPixel } from "./commandInspector";
 import { createShader, Shader, ShaderType } from "./glUtil";
@@ -16,6 +17,14 @@ function initShaderView(source: string): void {
 // Call every frame, inside your normal ImGui frame.
 function drawShaderView(onBreakpointsChanged: (lines: number[]) => void): void {
     if (!editor) return;
+
+    if (ImGui.Button("Play")) { }
+    ImGui.SameLine();
+    if (ImGui.Button("Pause")) { }
+    ImGui.SameLine();
+    if (ImGui.Button("Step")) { }
+    ImGui.SameLine();
+    if (ImGui.Button("Reset")) { }
 
     // ImGui.Begin("Shader");
     // 0,0 = fill the remaining space of the window
@@ -58,6 +67,20 @@ function compileShaderView(gl: WebGL2RenderingContext, shaderSource: string, typ
     let shader = gl.createShader(type) as WebGLShader;
     gl.shaderSource(shader, shaderSource);
     gl.compileShader(shader);
+    const compile = GLSL({
+        uniform: (name: string) => `uniforms.${name}`,
+        attribute: (name: string) => `attributes.${name}`,
+        varying: (name: string) => `varyings.${name}`,
+        in: (name: string) => `inputs.${name}`,
+        out: (name: string) => `outputs.${name}`,
+        version: '100 es',
+        includes: true,
+        debug: false,
+        sourceMap: true
+
+    });
+    const javascript = compile(shaderSource);
+    console.log(javascript)
     return shader;
 }
 
@@ -76,19 +99,7 @@ function getSourceFromProgram(gl: WebGL2RenderingContext, program: WebGLProgram,
 }
 
 function initShaderInspector(gl: WebGL2RenderingContext): void {
-    const shaderSource = `#version 300 es
-precision mediump float;
-out vec4 FragColor;
-in vec4 vertexColor; // the input variable from the vertex shader (same name and same type)  
-
-void main()
-{
-    FragColor = vertexColor;
-}`;
-    initShaderView(shaderSource);
-    const shader = compileShaderView(gl, shaderSource, ShaderType.Fragment);
-    showCompileErrors(gl, shader);
-    gl.deleteShader(shader);
+    initShaderView("");
 }
 let hasInit = false;
 let prevSelectedCallId: number | null = null;
@@ -112,18 +123,20 @@ export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSe
     ImGui.BeginChild('right-col', new ImGui.ImVec2(width, height), false);
     if (ImGui.BeginTabBar('wgd-shader-inspector-menu')) {
         if (ImGui.BeginTabItem('Vertex Shader')) {
+            let editorUpdate = false;
             if (prevTab != Tab.Vertex) {
                 const ref = state?.currentProgram;
                 if (ref) {
                     const program = objectById(session.registry, ref.id) as WebGLProgram;
                     const source = getSourceFromProgram(gl, program, ShaderType.Vertex);
                     editor?.SetText(source);
+                    editorUpdate = true;
                 }
                 prevTab = Tab.Vertex;
             }
             drawShaderView((lines: number[]) => { });
-            if (editor?.IsTextChanged()) {
-                const shader = compileShaderView(gl, editor.GetText(), ShaderType.Vertex);
+            if (editor?.IsTextChanged() || editorUpdate) {
+                const shader = compileShaderView(gl, editor ? editor.GetText() : "", ShaderType.Vertex);
                 showCompileErrors(gl, shader);
                 gl.deleteShader(shader);
                 console.log("refresh vertex");
@@ -131,18 +144,20 @@ export function drawShaderInspector(gl: WebGL2RenderingContext, session: DebugSe
             ImGui.EndTabItem();
         }
         if (ImGui.BeginTabItem('Fragment Shader')) {
+            let editorUpdate = false;
             if (prevTab != Tab.Fragment) {
                 const ref = state?.currentProgram;
                 if (ref) {
                     const program = objectById(session.registry, ref.id) as WebGLProgram;
                     const source = getSourceFromProgram(gl, program, ShaderType.Fragment);
                     editor?.SetText(source);
+                    editorUpdate = true;
                 }
                 prevTab = Tab.Fragment;
             }
             drawShaderView((lines: number[]) => { });
-            if (editor?.IsTextChanged()) {
-                const shader = compileShaderView(gl, editor.GetText(), ShaderType.Fragment);
+            if (editor?.IsTextChanged() || editorUpdate) {
+                const shader = compileShaderView(gl, editor ? editor.GetText() : "", ShaderType.Fragment);
                 showCompileErrors(gl, shader);
                 gl.deleteShader(shader);
                 console.log("refresh fragment");
